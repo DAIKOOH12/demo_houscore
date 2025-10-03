@@ -657,7 +657,15 @@
         });
     </script>
     <script src="scripts.js"></script>
-
+    <!-- ...existing code... -->
+    <div id="loadingOverlay"
+        style="display:none;position:fixed;z-index:9999;top:0;left:0;width:100vw;height:100vh;background:rgba(255,255,255,0.8);align-items:center;justify-content:center;">
+        <div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;">
+            <span class="visually-hidden">Đang tải...</span>
+        </div>
+        <div class="mt-3 fw-bold text-primary">Đang tải dữ liệu, vui lòng chờ...</div>
+    </div>
+    <!-- ...existing code... -->
 </body>
 
 </html>

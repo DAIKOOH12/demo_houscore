@@ -1,3 +1,21 @@
+const firebaseConfig = {
+    apiKey: "AIzaSyA-6etFIXIDHHDNXvLnONuISE2mlmAg6qI",
+    authDomain: "houscore-ai.firebaseapp.com",
+    projectId: "houscore-ai",
+    storageBucket: "houscore-ai.firebasestorage.app",
+    messagingSenderId: "467542358045",
+    appId: "1:467542358045:web:d609e702cf9e2e16f62ef4",
+    measurementId: "G-JKGHJTQKE2"
+};
+
+// Khởi tạo Firebase (compat)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+// Firestore (compat)
+const db = firebase.firestore();
+
 let currentRole = null;
 let gradeDistributionChart, progressComparisonChart, aiVsManualChart, aiEfficiencyChart, gradeTrendChart, rubricScoreChart, adminSystemLoadChart;
 
@@ -27,13 +45,61 @@ const ROLES = {
 const DEMO_STUDENT_ID = "S.SV105";
 
 // Mảng dữ liệu giả lập cho danh sách bài thi
-let examData = [
-    { id: 1, studentId: 'SV101', name: 'Nguyễn Văn A', score: 'N/A', plagiarism: 'N/A', status: 'Pending', feedback: 'Chưa chấm' },
-    { id: 2, studentId: 'SV102', name: 'Trần Thị B', score: 'N/A', plagiarism: 'N/A', status: 'Pending', feedback: 'Chưa chấm' },
-    { id: 3, studentId: 'SV103', name: 'Lê Văn C', score: '8.5', plagiarism: '12%', status: 'Graded', feedback: 'Đã gửi' },
-    { id: 4, studentId: 'SV104', name: 'Phạm Thị D', score: '6.2', plagiarism: '35%', status: 'Graded', feedback: 'Chưa gửi' },
-];
+let examData = [];
 
+async function fetchExamDataFromFirestore() {
+    try {
+        // 1. Lấy tất cả score
+        const snapshot = await firebase.firestore().collection('score').get();
+        const scores = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // 2. Lấy danh sách ID_student và ID_subject duy nhất
+        const studentIds = [...new Set(scores.map(s => s.ID_student))];
+        const subjectIds = [...new Set(scores.map(s => s.ID_subject))];
+
+        // 3. Lấy thông tin sinh viên
+        const studentPromises = studentIds.map(id =>
+            firebase.firestore().collection('students').doc(id).get()
+        );
+        const studentDocs = await Promise.all(studentPromises);
+        const studentMap = {};
+        studentDocs.forEach(doc => {
+            if (doc.exists) studentMap[doc.id] = doc.data();
+        });
+
+        // 4. Lấy thông tin môn học
+        const subjectPromises = subjectIds.map(id =>
+            firebase.firestore().collection('subjects').doc(id).get()
+        );
+        const subjectDocs = await Promise.all(subjectPromises);
+        const subjectMap = {};
+        subjectDocs.forEach(doc => {
+            if (doc.exists) subjectMap[doc.id] = doc.data();
+        });
+
+
+        // 5. Kết hợp dữ liệu
+        examData = scores.map(score => ({
+            id: score.id,
+            ID_student_doc: score.ID_student || 'N/A',
+            ID_student: studentMap[score.ID_student]?.ID_student || 'N/A',
+            student_name: studentMap[score.ID_student]?.student_name || 'N/A',
+            ID_subject: score.ID_subject || 'N/A',
+            subject_name: subjectMap[score.ID_subject]?.subject_name || 'N/A',
+            score: score.score !== undefined ? score.score : 'N/A',
+            simalarity_content: typeof score.simalarity_content === 'number' ? score.simalarity_content : 'N/A',
+            status: score.status || 'cho',
+        }));
+
+        updateExamTableUI(examData);
+    } catch (error) {
+        showToast('Lỗi khi lấy dữ liệu bài thi từ Firestore.', 'danger');
+        console.error(error);
+    }
+}
 
 // ------------------ UTILITIES ------------------
 
@@ -46,6 +112,58 @@ function showToast(message, type = 'success') {
 
     const toast = new bootstrap.Toast(toastElement);
     toast.show();
+}
+function generateExamTable(arr) {
+    let tableRows = '';
+    examData = arr || examData;
+
+
+    examData.forEach(item => {
+        const scoreDisplay = item.status === 'done' ?
+            `<span class="fw-bold text-${item.score >= 7 ? 'success' : 'warning'}">${item.score} / 10</span>` :
+            `<span class="badge bg-secondary">Chưa chấm</span>`;
+        var simalarity_content = item.simalarity_content * 100;
+        const plagiarismDisplay = item.status === 'done' ?
+            `<span class="text-${parseFloat(simalarity_content) > 30 ? 'danger' : 'success'} fw-bold">${simalarity_content} %</span>` : `<span class="badge bg-secondary">Chưa chấm</span>`;
+        const feedbackDisplay = item.status === 'done' ?
+            `<span class="badge bg-success">Đã chấm</span>` :
+            `<span class="badge bg-secondary">Chờ</span>`;
+        const actionButton = item.status === 'done' ?
+            `<button class="btn btn-sm btn-info text-white view-details-btn"
+        data-student-name="${item.name}"
+        data-score="${item.score}"
+        data-plagiarism="${item.plagiarism}"><i class="bi bi-eye"></i> Chi tiết</button>` :
+            `<button class="btn btn-sm btn-light text-muted" disabled><i class="bi bi-slash-circle"></i> Chưa chấm</button>`;
+
+        tableRows += `
+    <tr data-id="${item.id}" data-score="${item.score}" data-plagiarism="${item.plagiarism}" data-student-name="${item.name}">
+        <td>${item.ID_student}</td>
+        <td>${item.student_name}</td>
+        <td>${scoreDisplay}</td>
+        <td>${plagiarismDisplay}</td>
+        <td>${feedbackDisplay}</td>
+        <td>${actionButton}</td>
+    </tr>
+    `;
+    });
+
+    return `
+    <table class="table table-hover table-striped small" id="examTable">
+        <thead>
+            <tr>
+                <th>Mã SV</th>
+                <th>Tên Sinh viên</th>
+                <th>Điểm AI</th>
+                <th>Đạo văn</th>
+                <th>Phản hồi</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${tableRows}
+        </tbody>
+    </table>
+    `;
 }
 
 function clearCharts() {
@@ -105,19 +223,24 @@ function logout() {
 
 function loadDashboard() {
     if (!currentRole) return;
+    showLoading(true);
+    document.getElementById('dashboardContainer').style.display = 'none';
+    fetchExamDataFromFirestore().then(() => {
+        showLoading(false);
+        document.getElementById('dashboardContainer').style.display = 'flex';
 
-    const routes = ROLES[currentRole].routes;
-    const sidebarNav = document.getElementById('dashboardSidebarNav');
-    const tabContent = document.getElementById('dashboardTabsContent');
+        const routes = ROLES[currentRole].routes;
+        const sidebarNav = document.getElementById('dashboardSidebarNav');
+        const tabContent = document.getElementById('dashboardTabsContent');
 
-    sidebarNav.innerHTML = '';
-    tabContent.innerHTML = '';
+        sidebarNav.innerHTML = '';
+        tabContent.innerHTML = '';
 
-    routes.forEach((route, index) => {
-        const isActive = index === 0;
+        routes.forEach((route, index) => {
+            const isActive = index === 0;
 
-        // Add Sidebar Link
-        sidebarNav.innerHTML += `
+            // Add Sidebar Link
+            sidebarNav.innerHTML += `
     <li class="nav-item">
         <button class="nav-link ${isActive ? 'active' : ''}"
             id="${route.id}-tab" data-bs-toggle="pill"
@@ -129,82 +252,38 @@ function loadDashboard() {
     </li>
     `;
 
-        // Add Tab Content
-        tabContent.innerHTML += `
+            // Add Tab Content
+            tabContent.innerHTML += `
     <div class="tab-pane fade ${isActive ? 'show active' : ''}"
         id="${route.id}-content" role="tabpanel"
         aria-labelledby="${route.id}-tab">
     </div>
     `;
+        });
+
+        // Load content for all tabs
+        routes.forEach(route => {
+            const contentDiv = document.getElementById(`${route.id}-content`);
+            contentDiv.innerHTML = generateContent(route.id);
+        });
+
+        // Set initial title and initialize first chart
+        document.getElementById('current-title').textContent = routes[0].title;
+        initializeCharts(routes[0].id);
+
+        // Add event listener for tab switching to handle title and charts
+        const tabEl = document.getElementById('dashboardSidebarNav');
+        tabEl.addEventListener('shown.bs.tab', event => {
+            const targetId = event.target.getAttribute('data-bs-target').substring(1).replace('-content', '');
+            document.getElementById('current-title').textContent = event.target.textContent.trim();
+            initializeCharts(targetId);
+        });
     });
 
-    // Load content for all tabs
-    routes.forEach(route => {
-        const contentDiv = document.getElementById(`${route.id}-content`);
-        contentDiv.innerHTML = generateContent(route.id);
-    });
 
-    // Set initial title and initialize first chart
-    document.getElementById('current-title').textContent = routes[0].title;
-    initializeCharts(routes[0].id);
-
-    // Add event listener for tab switching to handle title and charts
-    const tabEl = document.getElementById('dashboardSidebarNav');
-    tabEl.addEventListener('shown.bs.tab', event => {
-        const targetId = event.target.getAttribute('data-bs-target').substring(1).replace('-content', '');
-        document.getElementById('current-title').textContent = event.target.textContent.trim();
-        initializeCharts(targetId);
-    });
 }
 
-function generateExamTable() {
-    let tableRows = '';
-    examData.forEach(item => {
-        const scoreDisplay = item.status === 'Graded' ?
-            `<span class="fw-bold text-${item.score >= 7 ? 'success' : 'warning'}">${item.score} / 10</span>` :
-            `<span class="badge bg-secondary">${item.status}</span>`;
-        const plagiarismDisplay = item.status === 'Graded' ?
-            `<span class="text-${parseFloat(item.plagiarism) > 30 ? 'danger' : 'success'} fw-bold">${item.plagiarism}</span>` : 'N/A';
-        const feedbackDisplay = item.feedback === 'Đã gửi' ?
-            `<span class="badge bg-success">${item.feedback}</span>` :
-            `<span class="badge bg-secondary">${item.feedback}</span>`;
-        const actionButton = item.status === 'Graded' ?
-            `<button class="btn btn-sm btn-info text-white view-details-btn"
-        data-student-name="${item.name}"
-        data-score="${item.score}"
-        data-plagiarism="${item.plagiarism}"><i class="bi bi-eye"></i> Chi tiết</button>` :
-            `<button class="btn btn-sm btn-light text-muted" disabled><i class="bi bi-slash-circle"></i> Chưa chấm</button>`;
 
-        tableRows += `
-    <tr data-id="${item.id}" data-score="${item.score}" data-plagiarism="${item.plagiarism}" data-student-name="${item.name}">
-        <td>${item.studentId}</td>
-        <td>${item.name}</td>
-        <td>${scoreDisplay}</td>
-        <td>${plagiarismDisplay}</td>
-        <td>${feedbackDisplay}</td>
-        <td>${actionButton}</td>
-    </tr>
-    `;
-    });
-
-    return `
-    <table class="table table-hover table-striped small" id="examTable">
-        <thead>
-            <tr>
-                <th>Mã SV</th>
-                <th>Tên Sinh viên</th>
-                <th>Điểm AI</th>
-                <th>Đạo văn (%)</th>
-                <th>Phản hồi</th>
-                <th>Hành động</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${tableRows}
-        </tbody>
-    </table>
-    `;
-}
 
 function generateContent(viewId) {
     // --- Content Generation by Role/View ---
@@ -766,10 +845,11 @@ function handleUpload() {
     showToast("Đã tải lên tệp bài làm. Bài làm đang chờ Giảng viên kích hoạt Chấm điểm Tự động.", 'primary');
 }
 
-function updateExamTableUI() {
+function updateExamTableUI(examData) {
+
     const examTableContainer = document.querySelector('#l_grading-content .card-body');
     if (examTableContainer) {
-        examTableContainer.innerHTML = generateExamTable() +
+        examTableContainer.innerHTML = generateExamTable(examData) +
             '<button class="btn btn-outline-danger btn-sm me-2 mt-2" onclick="showToast(\'Đã tải Báo cáo Tổng hợp (PDF).\', \'danger\')"><i class="bi bi-file-earmark-pdf me-1"></i> Tải Báo cáo Tổng</button>';
     }
 }
@@ -1173,3 +1253,7 @@ function loadScript(src) {
 }
 
 
+function showLoading(show = true) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.style.display = show ? 'flex' : 'none';
+}
