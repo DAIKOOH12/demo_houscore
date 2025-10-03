@@ -87,7 +87,7 @@
         .info-card {
             transition: transform 0.2s, box-shadow 0.2s;
             border-radius: 1rem;
-            <body>< !-- LOGIN SCREEN --><div class="login-container" id="loginScreen"><div class="card shadow-lg" style="width: 400px;"><div class="card-header text-center bg-primary text-white"><h4 class="mb-0 fw-bold">HouScore-AI Login</h4><p class="mb-0 small">Hệ thống Hỗ trợ Đánh giá Trực tuyến</p></div><div class="card-body p-4"><form id="loginForm" autocomplete="off"><div class="mb-3"><label for="username" class="form-label">Tên đăng nhập (Email/ID)</label><input type="text" class="form-control" id="username" value="user_demo" required></div><div class="mb-3"><label for="password" class="form-label">Mật khẩu</label><input type="password" class="form-control" id="password" value="123456" required></div><div class="mb-4"><label for="roleSelect" class="form-label">Chọn Vai trò (Demo)</label><select class="form-select" id="roleSelect"></select></div><div class="d-grid"><button type="submit" class="btn btn-primary fw-bold">Đăng nhập Hệ thống</button></div></form></div><div class="card-footer text-center small text-muted">Prototype V2.3 - Thêm QL Bài tập & Thông báo </div></div></div>z-index: 1;
+            <body>< !-- LOGIN SCREEN --><div class="login-container" id="loginScreen"><div class="card shadow-lg" style="width: 400px;"><div class="card-header text-center bg-primary text-white"><h4 class="mb-0 fw-bold">HouScore-AI Login</h4><p class="mb-0 small">Hệ thống Hỗ trợ Đánh giá Trực tuyến</p></div><div class="card-body p-4"><form id="loginForm" autocomplete="off"><div class="mb-3"><label for="username" class="form-label">Tên đăng nhập (Email/ID)</label><input type="text" class="form-control" id="username" value="" required></div><div class="mb-3"><label for="password" class="form-label">Mật khẩu</label><input type="password" class="form-control" id="password" value="" required></div><div class="mb-4"><label for="roleSelect" class="form-label">Chọn Vai trò (Demo)</label><select class="form-select" id="roleSelect"></select></div><div class="d-grid"><button type="submit" class="btn btn-primary fw-bold">Đăng nhập Hệ thống</button></div></form></div><div class="card-footer text-center small text-muted">Prototype V2.3 - Thêm QL Bài tập & Thông báo </div></div></div>z-index: 1;
         }
 
         /* Enhanced form and button styles */
@@ -359,20 +359,20 @@
                 <form id="loginForm">
                     <div class="mb-3">
                         <label for="username" class="form-label">Tên đăng nhập (Email/ID)</label>
-                        <input type="text" class="form-control" id="username" value="user_demo" required>
+                        <input type="text" class="form-control" id="username" value="" required>
                     </div>
                     <div class="mb-3">
                         <label for="password" class="form-label">Mật khẩu</label>
-                        <input type="password" class="form-control" id="password" value="123456" required>
+                        <input type="password" class="form-control" id="password" value="" required>
                     </div>
-                    <div class="mb-4">
+                    <!-- <div class="mb-4">
                         <label for="roleSelect" class="form-label">Chọn Vai trò (Demo)</label>
                         <select class="form-select" id="roleSelect">
                             <option value="lecturer" selected>Giảng viên (L.GV001)</option>
                             <option value="student">Sinh viên (S.SV105)</option>
                             <option value="admin">Quản trị viên (A.ADM01)</option>
                         </select>
-                    </div>
+                    </div> -->
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary fw-bold">Đăng nhập Hệ thống</button>
                     </div>
@@ -545,11 +545,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.2/firebase-auth-compat.js"></script>>
     <!-- Script của bạn -->
-    <script src="scripts.js"></script>
     <script type="module">
         // Import SDK từ Firebase CDN
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
 
         // Config từ Firebase console
         const firebaseConfig = {
@@ -567,20 +567,97 @@
         const db = getFirestore(app);
 
         // Ví dụ: thêm dữ liệu vào Firestore
-        async function addData() {
+        async function addManyUsers(users) {
             try {
-                const docRef = await addDoc(collection(db, "users"), {
-                    name: "Trường",
-                    email: "test@example.com"
+                // users là một mảng object, ví dụ: [{username: "a", email: "a@gmail.com"}, ...]
+                const promises = users.map(user =>
+                    addDoc(collection(db, "users"), user)
+                );
+                const results = await Promise.all(promises);
+                results.forEach((docRef, idx) => {
+                    console.log(`User ${idx + 1} added with ID: `, docRef.id);
+                });
+            } catch (e) {
+                console.error("Error adding documents: ", e);
+            }
+        }
+
+        // Ví dụ sử dụng:
+        // addManyUsers([
+        //     { username: "gvien1", password: "123",ID_role: "lecturer",role_base:"ZKccpJlyitxPOu4JFk55" },
+        //     { username: "svien1", password: "123",ID_role: "student",role_base:"A03cWKeY3Gy4i5BH8EuS" },
+        //     { username: "svien2", password: "123",ID_role: "student",role_base:"A03cWKeY3Gy4i5BH8EuS" },
+        // ]);
+
+        async function addRoles() {
+            try {
+                const docRef = await addDoc(collection(db, "roles"), {
+                    role_name: "giáo viên",
                 });
                 console.log("Document written with ID: ", docRef.id);
             } catch (e) {
                 console.error("Error adding document: ", e);
             }
         }
+        // ...trong <script type="module">...
 
-        
+        async function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                showToast('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.', 'danger');
+                return;
+            }
+
+            try {
+                // Truy vấn user có username và password khớp
+                const q = query(
+                    collection(db, "users"),
+                    where("username", "==", username),
+                    where("password", "==", password)
+                );
+                const snapshot = await getDocs(q);
+
+                if (snapshot.empty) {
+                    showToast('Tên đăng nhập hoặc mật khẩu không đúng.', 'danger');
+                    return;
+                }
+
+                const userData = snapshot.docs[0].data();
+                const role = userData.ID_role;
+
+
+                if (!ROLES[role]) {
+                    showToast('Role không hợp lệ.', 'danger');
+                    return;
+                }
+
+                currentRole = role;
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('dashboardContainer').style.display = 'flex';
+
+                const userInfo = (role === 'lecturer') ? 'Giảng viên L.GV001' :
+                    (role === 'student') ? `Sinh viên ${DEMO_STUDENT_ID}` :
+                        'Quản trị viên A.ADM01';
+
+                document.getElementById('userRoleDisplay').textContent = `Vai trò: ${ROLES[role].name}`;
+                document.getElementById('current-user-info').textContent = `Xin chào, ${userInfo}`;
+                loadDashboard();
+
+                showToast(`Đăng nhập thành công với vai trò: ${ROLES[role].name}`, 'primary');
+            } catch (error) {
+                showToast('Lỗi khi truy vấn dữ liệu người dùng.', 'danger');
+                console.error(error);
+            }
+        }
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            login();
+        });
     </script>
+    <script src="scripts.js"></script>
+
 </body>
 
 </html>

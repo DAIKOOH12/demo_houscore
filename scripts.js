@@ -60,29 +60,29 @@ function clearCharts() {
 
 // ------------------ AUTHENTICATION LOGIC ------------------
 
-function login() {
-    const role = document.getElementById('roleSelect').value;
-    const username = document.getElementById('username').value;
+// function login() {
+//     const role = document.getElementById('roleSelect').value;
+//     const username = document.getElementById('username').value;
 
-    if (!username) {
-        showToast('Vui lòng nhập tên đăng nhập.', 'danger');
-        return;
-    }
+//     if (!username) {
+//         showToast('Vui lòng nhập tên đăng nhập.', 'danger');
+//         return;
+//     }
 
-    currentRole = role;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('dashboardContainer').style.display = 'flex'; // Use flex for layout
+//     currentRole = role;
+//     document.getElementById('loginScreen').style.display = 'none';
+//     document.getElementById('dashboardContainer').style.display = 'flex'; // Use flex for layout
 
-    const userInfo = (role === 'lecturer') ? 'Giảng viên L.GV001' :
-        (role === 'student') ? `Sinh viên ${DEMO_STUDENT_ID}` :
-            'Quản trị viên A.ADM01';
+//     const userInfo = (role === 'lecturer') ? 'Giảng viên L.GV001' :
+//         (role === 'student') ? `Sinh viên ${DEMO_STUDENT_ID}` :
+//             'Quản trị viên A.ADM01';
 
-    document.getElementById('userRoleDisplay').textContent = `Vai trò: ${ROLES[role].name}`;
-    document.getElementById('current-user-info').textContent = `Xin chào, ${userInfo}`;
+//     document.getElementById('userRoleDisplay').textContent = `Vai trò: ${ROLES[role].name}`;
+//     document.getElementById('current-user-info').textContent = `Xin chào, ${userInfo}`;
 
-    loadDashboard();
-    showToast(`Đăng nhập thành công với vai trò: ${ROLES[role].name}`, 'primary');
-}
+//     loadDashboard();
+//     showToast(`Đăng nhập thành công với vai trò: ${ROLES[role].name}`, 'primary');
+// }
 
 function logout() {
     currentRole = null;
@@ -99,10 +99,7 @@ function logout() {
     showToast('Đã đăng xuất khỏi hệ thống.', 'secondary');
 }
 
-document.getElementById('loginForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    login();
-});
+
 
 // ------------------ DASHBOARD RENDERING ------------------
 
@@ -1176,17 +1173,3 @@ function loadScript(src) {
 }
 
 
-
-// const firebaseConfig = {
-//     apiKey: "AIzaSyA-6etFIXIDHHDNXvLnONuISE2mlmAg6qI",
-//     authDomain: "houscore-ai.firebaseapp.com",
-//     projectId: "houscore-ai",
-//     storageBucket: "houscore-ai.firebasestorage.app",
-//     messagingSenderId: "467542358045",
-//     appId: "1:467542358045:web:d609e702cf9e2e16f62ef4",
-//     measurementId: "G-JKGHJTQKE2"
-// };
-// firebase.initializeApp(firebaseConfig);
-// if (firebase.analytics) {
-//     firebase.analytics();
-// }
