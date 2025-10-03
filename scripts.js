@@ -1174,3 +1174,19 @@ function loadScript(src) {
         document.head.appendChild(script);
     });
 }
+
+
+
+// const firebaseConfig = {
+//     apiKey: "AIzaSyA-6etFIXIDHHDNXvLnONuISE2mlmAg6qI",
+//     authDomain: "houscore-ai.firebaseapp.com",
+//     projectId: "houscore-ai",
+//     storageBucket: "houscore-ai.firebasestorage.app",
+//     messagingSenderId: "467542358045",
+//     appId: "1:467542358045:web:d609e702cf9e2e16f62ef4",
+//     measurementId: "G-JKGHJTQKE2"
+// };
+// firebase.initializeApp(firebaseConfig);
+// if (firebase.analytics) {
+//     firebase.analytics();
+// }
