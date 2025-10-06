@@ -1,45 +1,62 @@
 const firebaseConfig = {
-    apiKey: "AIzaSyA-6etFIXIDHHDNXvLnONuISE2mlmAg6qI",
-    authDomain: "houscore-ai.firebaseapp.com",
-    projectId: "houscore-ai",
-    storageBucket: "houscore-ai.firebasestorage.app",
-    messagingSenderId: "467542358045",
-    appId: "1:467542358045:web:d609e702cf9e2e16f62ef4",
-    measurementId: "G-JKGHJTQKE2"
+  apiKey: "AIzaSyA-6etFIXIDHHDNXvLnONuISE2mlmAg6qI",
+  authDomain: "houscore-ai.firebaseapp.com",
+  projectId: "houscore-ai",
+  storageBucket: "houscore-ai.firebasestorage.app",
+  messagingSenderId: "467542358045",
+  appId: "1:467542358045:web:d609e702cf9e2e16f62ef4",
+  measurementId: "G-JKGHJTQKE2",
 };
 
+let curruntStudent = null;
 // Khởi tạo Firebase (compat)
 if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+  firebase.initializeApp(firebaseConfig);
 }
 
 // Firestore (compat)
 const db = firebase.firestore();
 
 let currentRole = null;
-let gradeDistributionChart, progressComparisonChart, aiVsManualChart, aiEfficiencyChart, gradeTrendChart, rubricScoreChart, adminSystemLoadChart;
+let gradeDistributionChart,
+  progressComparisonChart,
+  aiVsManualChart,
+  aiEfficiencyChart,
+  gradeTrendChart,
+  rubricScoreChart,
+  adminSystemLoadChart;
 
 const ROLES = {
-    'lecturer': {
-        name: 'Giảng viên', icon: 'bi-person-workspace', routes: [
-            { id: 'l_grading', title: 'Chấm & Quản lý Bài thi', icon: 'bi-file-text' },
-            { id: 'l_plagiarism', title: 'Kiểm tra Đạo văn', icon: 'bi-patch-check' },
-            { id: 'l_reports', title: 'Báo cáo Thống kê', icon: 'bi-bar-chart-line' },
-        ]
-    },
-    'student': {
-        name: 'Sinh viên', icon: 'bi-person', routes: [
-            { id: 's_submission', title: 'Nộp Bài thi', icon: 'bi-upload' },
-            { id: 's_history', title: 'Lịch sử Bài làm', icon: 'bi-clock-history' },
-            { id: 's_reports', title: 'Báo cáo Học tập', icon: 'bi-file-bar-chart' },
-        ]
-    },
-    'admin': {
-        name: 'Quản trị viên', icon: 'bi-gear', routes: [
-            { id: 'a_users', title: 'Quản lý Tài khoản', icon: 'bi-people' },
-            { id: 'a_system', title: 'Giám sát Hệ thống', icon: 'bi-activity' },
-        ]
-    }
+  lecturer: {
+    name: "Giảng viên",
+    icon: "bi-person-workspace",
+    routes: [
+      {
+        id: "l_grading",
+        title: "Chấm & Quản lý Bài thi",
+        icon: "bi-file-text",
+      },
+      { id: "l_plagiarism", title: "Kiểm tra Đạo văn", icon: "bi-patch-check" },
+      { id: "l_reports", title: "Báo cáo Thống kê", icon: "bi-bar-chart-line" },
+    ],
+  },
+  student: {
+    name: "Sinh viên",
+    icon: "bi-person",
+    routes: [
+      { id: "s_submission", title: "Nộp Bài thi", icon: "bi-upload" },
+      { id: "s_history", title: "Lịch sử Bài làm", icon: "bi-clock-history" },
+      { id: "s_reports", title: "Báo cáo Học tập", icon: "bi-file-bar-chart" },
+    ],
+  },
+  admin: {
+    name: "Quản trị viên",
+    icon: "bi-gear",
+    routes: [
+      { id: "a_users", title: "Quản lý Tài khoản", icon: "bi-people" },
+      { id: "a_system", title: "Giám sát Hệ thống", icon: "bi-activity" },
+    ],
+  },
 };
 
 const DEMO_STUDENT_ID = "S.SV105";
@@ -48,94 +65,104 @@ const DEMO_STUDENT_ID = "S.SV105";
 let examData = [];
 
 async function fetchExamDataFromFirestore() {
-    try {
-        // 1. Lấy tất cả score
-        const snapshot = await firebase.firestore().collection('score').get();
-        const scores = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+  try {
+    // 1. Lấy tất cả score
+    const snapshot = await firebase.firestore().collection("score").get();
+    const scores = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-        // 2. Lấy danh sách ID_student và ID_subject duy nhất
-        const studentIds = [...new Set(scores.map(s => s.ID_student))];
-        const subjectIds = [...new Set(scores.map(s => s.ID_subject))];
+    // 2. Lấy danh sách ID_student và ID_subject duy nhất
+    const studentIds = [...new Set(scores.map((s) => s.ID_student))];
+    const subjectIds = [...new Set(scores.map((s) => s.ID_subject))];
 
-        // 3. Lấy thông tin sinh viên
-        const studentPromises = studentIds.map(id =>
-            firebase.firestore().collection('students').doc(id).get()
-        );
-        const studentDocs = await Promise.all(studentPromises);
-        const studentMap = {};
-        studentDocs.forEach(doc => {
-            if (doc.exists) studentMap[doc.id] = doc.data();
-        });
+    // 3. Lấy thông tin sinh viên
+    const studentPromises = studentIds.map((id) =>
+      firebase.firestore().collection("students").doc(id).get()
+    );
+    const studentDocs = await Promise.all(studentPromises);
+    const studentMap = {};
+    studentDocs.forEach((doc) => {
+      if (doc.exists) studentMap[doc.id] = doc.data();
+    });
 
-        // 4. Lấy thông tin môn học
-        const subjectPromises = subjectIds.map(id =>
-            firebase.firestore().collection('subjects').doc(id).get()
-        );
-        const subjectDocs = await Promise.all(subjectPromises);
-        const subjectMap = {};
-        subjectDocs.forEach(doc => {
-            if (doc.exists) subjectMap[doc.id] = doc.data();
-        });
+    // 4. Lấy thông tin môn học
+    const subjectPromises = subjectIds.map((id) =>
+      firebase.firestore().collection("subjects").doc(id).get()
+    );
+    const subjectDocs = await Promise.all(subjectPromises);
+    const subjectMap = {};
+    subjectDocs.forEach((doc) => {
+      if (doc.exists) subjectMap[doc.id] = doc.data();
+    });
 
+    // 5. Kết hợp dữ liệu
+    examData = scores.map((score) => ({
+      id: score.id,
+      ID_student_doc: score.ID_student || "N/A",
+      ID_student: studentMap[score.ID_student]?.ID_student || "N/A",
+      student_name: studentMap[score.ID_student]?.student_name || "N/A",
+      ID_subject: score.ID_subject || "N/A",
+      subject_name: subjectMap[score.ID_subject]?.subject_name || "N/A",
+      score: score.score !== undefined ? score.score : "N/A",
+      simalarity_content:
+        typeof score.simalarity_content === "number"
+          ? score.simalarity_content
+          : "N/A",
+      status: score.status || "cho",
+    }));
 
-        // 5. Kết hợp dữ liệu
-        examData = scores.map(score => ({
-            id: score.id,
-            ID_student_doc: score.ID_student || 'N/A',
-            ID_student: studentMap[score.ID_student]?.ID_student || 'N/A',
-            student_name: studentMap[score.ID_student]?.student_name || 'N/A',
-            ID_subject: score.ID_subject || 'N/A',
-            subject_name: subjectMap[score.ID_subject]?.subject_name || 'N/A',
-            score: score.score !== undefined ? score.score : 'N/A',
-            simalarity_content: typeof score.simalarity_content === 'number' ? score.simalarity_content : 'N/A',
-            status: score.status || 'cho',
-        }));
-
-        updateExamTableUI(examData);
-    } catch (error) {
-        showToast('Lỗi khi lấy dữ liệu bài thi từ Firestore.', 'danger');
-        console.error(error);
-    }
+    updateExamTableUI(examData);
+  } catch (error) {
+    showToast("Lỗi khi lấy dữ liệu bài thi từ Firestore.", "danger");
+    console.error(error);
+  }
 }
 
 // ------------------ UTILITIES ------------------
 
-function showToast(message, type = 'success') {
-    const toastElement = document.getElementById('liveToast');
-    const toastMessage = document.getElementById('toast-message');
+function showToast(message, type = "success") {
+  const toastElement = document.getElementById("liveToast");
+  const toastMessage = document.getElementById("toast-message");
 
-    toastElement.className = `toast align-items-center text-white border-0 bg-${type}`;
-    toastMessage.textContent = message;
+  toastElement.className = `toast align-items-center text-white border-0 bg-${type}`;
+  toastMessage.textContent = message;
 
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
+  const toast = new bootstrap.Toast(toastElement);
+  toast.show();
 }
 function generateExamTable(arr) {
-    let tableRows = '';
-    examData = arr || examData;
+  let tableRows = "";
+  examData = arr || examData;
 
-
-    examData.forEach(item => {
-        const scoreDisplay = item.status === 'done' ?
-            `<span class="fw-bold text-${item.score >= 7 ? 'success' : 'warning'}">${item.score} / 10</span>` :
-            `<span class="badge bg-secondary">Chưa chấm</span>`;
-        var simalarity_content = item.simalarity_content * 100;
-        const plagiarismDisplay = item.status === 'done' ?
-            `<span class="text-${parseFloat(simalarity_content) > 30 ? 'danger' : 'success'} fw-bold">${simalarity_content} %</span>` : `<span class="badge bg-secondary">Chưa chấm</span>`;
-        const feedbackDisplay = item.status === 'done' ?
-            `<span class="badge bg-success">Đã chấm</span>` :
-            `<span class="badge bg-secondary">Chờ</span>`;
-        const actionButton = item.status === 'done' ?
-            `<button class="btn btn-sm btn-info text-white view-details-btn"
+  examData.forEach((item) => {
+    const scoreDisplay =
+      item.status === "done"
+        ? `<span class="fw-bold text-${
+            item.score >= 7 ? "success" : "warning"
+          }">${item.score} / 10</span>`
+        : `<span class="badge bg-secondary">Chưa chấm</span>`;
+    var simalarity_content = item.simalarity_content * 100;
+    const plagiarismDisplay =
+      item.status === "done"
+        ? `<span class="text-${
+            parseFloat(simalarity_content) > 30 ? "danger" : "success"
+          } fw-bold">${simalarity_content} %</span>`
+        : `<span class="badge bg-secondary">Chưa chấm</span>`;
+    const feedbackDisplay =
+      item.status === "done"
+        ? `<span class="badge bg-success">Đã chấm</span>`
+        : `<span class="badge bg-secondary">Chờ</span>`;
+    const actionButton =
+      item.status === "done"
+        ? `<button class="btn btn-sm btn-info text-white view-details-btn"
         data-student-name="${item.name}"
         data-score="${item.score}"
-        data-plagiarism="${item.plagiarism}"><i class="bi bi-eye"></i> Chi tiết</button>` :
-            `<button class="btn btn-sm btn-light text-muted" disabled><i class="bi bi-slash-circle"></i> Chưa chấm</button>`;
+        data-plagiarism="${item.plagiarism}"><i class="bi bi-eye"></i> Chi tiết</button>`
+        : `<button class="btn btn-sm btn-light text-muted" disabled><i class="bi bi-slash-circle"></i> Chưa chấm</button>`;
 
-        tableRows += `
+    tableRows += `
     <tr data-id="${item.id}" data-score="${item.score}" data-plagiarism="${item.plagiarism}" data-student-name="${item.name}">
         <td>${item.ID_student}</td>
         <td>${item.student_name}</td>
@@ -145,9 +172,9 @@ function generateExamTable(arr) {
         <td>${actionButton}</td>
     </tr>
     `;
-    });
+  });
 
-    return `
+  return `
     <table class="table table-hover table-striped small" id="examTable">
         <thead>
             <tr>
@@ -167,13 +194,13 @@ function generateExamTable(arr) {
 }
 
 function clearCharts() {
-    if (gradeDistributionChart) gradeDistributionChart.destroy();
-    if (progressComparisonChart) progressComparisonChart.destroy();
-    if (aiVsManualChart) aiVsManualChart.destroy();
-    if (aiEfficiencyChart) aiEfficiencyChart.destroy();
-    if (gradeTrendChart) gradeTrendChart.destroy();
-    if (rubricScoreChart) rubricScoreChart.destroy();
-    if (adminSystemLoadChart) adminSystemLoadChart.destroy();
+  if (gradeDistributionChart) gradeDistributionChart.destroy();
+  if (progressComparisonChart) progressComparisonChart.destroy();
+  if (aiVsManualChart) aiVsManualChart.destroy();
+  if (aiEfficiencyChart) aiEfficiencyChart.destroy();
+  if (gradeTrendChart) gradeTrendChart.destroy();
+  if (rubricScoreChart) rubricScoreChart.destroy();
+  if (adminSystemLoadChart) adminSystemLoadChart.destroy();
 }
 
 // ------------------ AUTHENTICATION LOGIC ------------------
@@ -203,46 +230,77 @@ function clearCharts() {
 // }
 
 function logout() {
-    currentRole = null;
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('dashboardContainer').style.display = 'none';
-    clearCharts();
-    // Reset demo data for next login
-    examData = [
-        { id: 1, studentId: 'SV101', name: 'Nguyễn Văn A', score: 'N/A', plagiarism: 'N/A', status: 'Pending', feedback: 'Chưa chấm' },
-        { id: 2, studentId: 'SV102', name: 'Trần Thị B', score: 'N/A', plagiarism: 'N/A', status: 'Pending', feedback: 'Chưa chấm' },
-        { id: 3, studentId: 'SV103', name: 'Lê Văn C', score: '8.5', plagiarism: '12%', status: 'Graded', feedback: 'Đã gửi' },
-        { id: 4, studentId: 'SV104', name: 'Phạm Thị D', score: '6.2', plagiarism: '35%', status: 'Graded', feedback: 'Chưa gửi' },
-    ];
-    showToast('Đã đăng xuất khỏi hệ thống.', 'secondary');
+  currentRole = null;
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("dashboardContainer").style.display = "none";
+  clearCharts();
+  // Reset demo data for next login
+  examData = [
+    {
+      id: 1,
+      studentId: "SV101",
+      name: "Nguyễn Văn A",
+      score: "N/A",
+      plagiarism: "N/A",
+      status: "Pending",
+      feedback: "Chưa chấm",
+    },
+    {
+      id: 2,
+      studentId: "SV102",
+      name: "Trần Thị B",
+      score: "N/A",
+      plagiarism: "N/A",
+      status: "Pending",
+      feedback: "Chưa chấm",
+    },
+    {
+      id: 3,
+      studentId: "SV103",
+      name: "Lê Văn C",
+      score: "8.5",
+      plagiarism: "12%",
+      status: "Graded",
+      feedback: "Đã gửi",
+    },
+    {
+      id: 4,
+      studentId: "SV104",
+      name: "Phạm Thị D",
+      score: "6.2",
+      plagiarism: "35%",
+      status: "Graded",
+      feedback: "Chưa gửi",
+    },
+  ];
+  showToast("Đã đăng xuất khỏi hệ thống.", "secondary");
 }
-
-
 
 // ------------------ DASHBOARD RENDERING ------------------
 
-function loadDashboard() {
-    if (!currentRole) return;
-    showLoading(true);
-    document.getElementById('dashboardContainer').style.display = 'none';
-    fetchExamDataFromFirestore().then(() => {
-        showLoading(false);
-        document.getElementById('dashboardContainer').style.display = 'flex';
+function loadDashboard(studentID) {
+  curruntStudent = studentID;
+  if (!currentRole) return;
+  showLoading(true);
+  document.getElementById("dashboardContainer").style.display = "none";
+  fetchExamDataFromFirestore().then(() => {
+    showLoading(false);
+    document.getElementById("dashboardContainer").style.display = "flex";
 
-        const routes = ROLES[currentRole].routes;
-        const sidebarNav = document.getElementById('dashboardSidebarNav');
-        const tabContent = document.getElementById('dashboardTabsContent');
+    const routes = ROLES[currentRole].routes;
+    const sidebarNav = document.getElementById("dashboardSidebarNav");
+    const tabContent = document.getElementById("dashboardTabsContent");
 
-        sidebarNav.innerHTML = '';
-        tabContent.innerHTML = '';
+    sidebarNav.innerHTML = "";
+    tabContent.innerHTML = "";
 
-        routes.forEach((route, index) => {
-            const isActive = index === 0;
+    routes.forEach((route, index) => {
+      const isActive = index === 0;
 
-            // Add Sidebar Link
-            sidebarNav.innerHTML += `
+      // Add Sidebar Link
+      sidebarNav.innerHTML += `
     <li class="nav-item">
-        <button class="nav-link ${isActive ? 'active' : ''}"
+        <button class="nav-link ${isActive ? "active" : ""}"
             id="${route.id}-tab" data-bs-toggle="pill"
             data-bs-target="#${route.id}-content" type="button"
             role="tab" aria-controls="${route.id}-content"
@@ -252,47 +310,47 @@ function loadDashboard() {
     </li>
     `;
 
-            // Add Tab Content
-            tabContent.innerHTML += `
-    <div class="tab-pane fade ${isActive ? 'show active' : ''}"
+      // Add Tab Content
+      tabContent.innerHTML += `
+    <div class="tab-pane fade ${isActive ? "show active" : ""}"
         id="${route.id}-content" role="tabpanel"
         aria-labelledby="${route.id}-tab">
     </div>
     `;
-        });
-
-        // Load content for all tabs
-        routes.forEach(route => {
-            const contentDiv = document.getElementById(`${route.id}-content`);
-            contentDiv.innerHTML = generateContent(route.id);
-        });
-
-        // Set initial title and initialize first chart
-        document.getElementById('current-title').textContent = routes[0].title;
-        initializeCharts(routes[0].id);
-
-        // Add event listener for tab switching to handle title and charts
-        const tabEl = document.getElementById('dashboardSidebarNav');
-        tabEl.addEventListener('shown.bs.tab', event => {
-            const targetId = event.target.getAttribute('data-bs-target').substring(1).replace('-content', '');
-            document.getElementById('current-title').textContent = event.target.textContent.trim();
-            initializeCharts(targetId);
-        });
     });
 
+    // Load content for all tabs
+    routes.forEach((route) => {
+      const contentDiv = document.getElementById(`${route.id}-content`);
+      contentDiv.innerHTML = generateContent(route.id);
+    });
 
+    // Set initial title and initialize first chart
+    document.getElementById("current-title").textContent = routes[0].title;
+    initializeCharts(routes[0].id);
+
+    // Add event listener for tab switching to handle title and charts
+    const tabEl = document.getElementById("dashboardSidebarNav");
+    tabEl.addEventListener("shown.bs.tab", (event) => {
+      const targetId = event.target
+        .getAttribute("data-bs-target")
+        .substring(1)
+        .replace("-content", "");
+      document.getElementById("current-title").textContent =
+        event.target.textContent.trim();
+      initializeCharts(targetId);
+    });
+  });
 }
 
-
-
 function generateContent(viewId) {
-    // --- Content Generation by Role/View ---
+  // --- Content Generation by Role/View ---
 
-    if (currentRole === 'lecturer') {
-        if (viewId === 'l_grading') {
-            // Lecturer: Grading & Exam Management
-            return `
-    <h4 class="text-primary mb-4 border-bottom pb-2">Chấm & Quản lý Bài thi (Môn: Nhập môn AI - K20)</h4>
+  if (currentRole === "lecturer") {
+    if (viewId === "l_grading") {
+      // Lecturer: Grading & Exam Management
+      return `
+    <h4 class="text-primary mb-4 border-bottom pb-2">Chấm & Quản lý Bài thi (Môn: Kinh tế chính trị)</h4>
     <p class="text-muted small">Quản lý danh sách bài thi tự luận, xem kết quả chấm điểm AI và phản hồi nhanh tới sinh viên.</p>
     <div class="d-flex justify-content-between mb-3">
         <div>
@@ -314,9 +372,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        } else if (viewId === 'l_create_assignment') {
-            // Lecturer: Create Assignment
-            return `
+    } else if (viewId === "l_create_assignment") {
+      // Lecturer: Create Assignment
+      return `
     <h4 class="text-primary mb-4 border-bottom pb-2">Tạo Bài tập Mới & Thiết lập Rubric</h4>
     <p class="text-muted small">Thiết lập chi tiết bài tập/khóa luận, gán cho lớp môn, và định nghĩa tiêu chí chấm điểm tự động.</p>
     <div class="card shadow-sm p-4">
@@ -368,9 +426,9 @@ function generateContent(viewId) {
         </form>
     </div>
     `;
-        } else if (viewId === 'l_notifications') {
-            // Lecturer: Send Notifications
-            return `
+    } else if (viewId === "l_notifications") {
+      // Lecturer: Send Notifications
+      return `
     <h4 class="text-primary mb-4 border-bottom pb-2">Gửi Thông báo Đẩy cho Sinh viên</h4>
     <p class="text-muted small">Gửi thông báo quan trọng về bài tập, điểm số hoặc cảnh báo đến toàn bộ lớp môn hoặc nhóm sinh viên cụ thể.</p>
     <div class="card shadow-sm p-4">
@@ -403,10 +461,9 @@ function generateContent(viewId) {
         </form>
     </div>
     `;
-        }
-        else if (viewId === 'l_plagiarism') {
-            // Lecturer: Plagiarism Check
-            return `
+    } else if (viewId === "l_plagiarism") {
+      // Lecturer: Plagiarism Check
+      return `
     <h4 class="text-primary mb-4 border-bottom pb-2">Kiểm tra Đạo văn & Liêm chính Học thuật</h4>
     <p class="text-muted small">Kiểm tra tính trùng lặp của bài luận, bài tập môn học hoặc khóa luận tốt nghiệp dựa trên kho dữ liệu nội bộ và công khai.</p>
     <div class="card shadow-sm p-4">
@@ -439,10 +496,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        }
-        else if (viewId === 'l_classes') {
-            // Lecturer: Class Management 
-            return `
+    } else if (viewId === "l_classes") {
+      // Lecturer: Class Management
+      return `
     <h4 class="text-primary mb-4 border-bottom pb-2">Quản lý Lớp Môn và Danh sách Sinh viên</h4>
     <p class="text-muted small">Xem danh sách các lớp môn giảng viên đang phụ trách. Quản lý sinh viên và gán quyền chấm bài.</p>
     <div class="row g-4">
@@ -470,9 +526,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        } else if (viewId === 'l_reports') {
-            // Lecturer: Statistical Reports
-            return `
+    } else if (viewId === "l_reports") {
+      // Lecturer: Statistical Reports
+      return `
     <h4 class="text-primary mb-4 border-bottom pb-2">Báo cáo Thống kê & Phân tích Điểm</h4>
     <p class="text-muted small">Phân tích chuyên sâu về hiệu suất của các lớp môn học và đánh giá độ chính xác của AI Engine.</p>
     <div class="card shadow-sm mb-4">
@@ -507,11 +563,11 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        }
-    } else if (currentRole === 'student') {
-        if (viewId === 's_progress') {
-            // Student: Personalized Learning Roadmap & Progress
-            return `
+    }
+  } else if (currentRole === "student") {
+    if (viewId === "s_progress") {
+      // Student: Personalized Learning Roadmap & Progress
+      return `
     <h4 class="text-success mb-4 border-bottom pb-2">Lộ trình Cá nhân hóa & Phân tích Kỹ năng</h4>
     <p class="text-muted small">Theo dõi tiến độ hoàn thành các mục tiêu học tập và **lộ trình cá nhân hóa dựa trên điểm mạnh/yếu** được AI phân tích.</p>
     <div class="row g-4">
@@ -554,9 +610,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        } else if (viewId === 's_notifications') {
-            // Student: Notifications Center
-            return `
+    } else if (viewId === "s_notifications") {
+      // Student: Notifications Center
+      return `
     <h4 class="text-success mb-4 border-bottom pb-2">Hộp Thông báo Đẩy (Push Notifications)</h4>
     <p class="text-muted small">Quản lý các thông báo quan trọng về hạn chót, điểm số và phản hồi chi tiết từ Giảng viên/Hệ thống AI.</p>
     <div class="card shadow-sm">
@@ -588,10 +644,9 @@ function generateContent(viewId) {
         <button class="btn btn-outline-secondary btn-sm" onclick="showToast('Đã đánh dấu tất cả thông báo là đã đọc.', 'secondary')"><i class="bi bi-check-all me-1"></i> Đánh dấu Đã đọc</button>
     </div>
     `;
-        }
-        else if (viewId === 's_submission') {
-            // Student: Exam Submission
-            return `
+    } else if (viewId === "s_submission") {
+      // Student: Exam Submission
+      return `
     <h4 class="text-success mb-4 border-bottom pb-2">Nộp Bài thi Tự luận/Báo cáo</h4>
     <p class="text-muted small">Nộp bài thi khi có yêu cầu từ Giảng viên. Hệ thống HouScore-AI sẽ tự động chấm điểm và kiểm tra đạo văn.</p>
     <div class="card shadow-sm">
@@ -599,14 +654,14 @@ function generateContent(viewId) {
         <div class="card-body">
             <ul class="list-group mb-3">
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    Phân tích mô hình học sâu RNN (AI101)
+                    Kinh tế chính trị (7E12323.41)
                     <span class="badge bg-danger">Hạn chót: 15/10/2025</span>
                 </li>
             </ul>
             <h6 class="mt-4">Khu vực Nộp bài</h6>
             <div class="mb-3">
-                <label for="fileSubmission" class="form-label small">Tải tệp Bài làm (.docx, .pdf)</label>
-                <input class="form-control" type="file" id="fileSubmission" accept=".docx,.pdf,.txt">
+                <label for="fileSubmission" class="form-label small">Tải tệp Bài làm (.docx)</label>
+                <input class="form-control" type="file" id="fileSubmission" accept=".docx">
             </div>
             <div class="d-grid">
                 <button class="btn btn-success" onclick="handleStudentSubmission()"><i class="bi bi-check-circle me-1"></i> Xác nhận Nộp Bài</button>
@@ -614,9 +669,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        } else if (viewId === 's_history') {
-            // Student: Assignment History
-            return `
+    } else if (viewId === "s_history") {
+      // Student: Assignment History
+      return `
     <h4 class="text-success mb-4 border-bottom pb-2">Lịch sử Bài làm & Phản hồi</h4>
     <p class="text-muted small">Danh sách các bài làm đã được chấm điểm và phản hồi chi tiết từ Giảng viên/AI Engine.</p>
     <div class="card shadow-sm">
@@ -654,9 +709,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        } else if (viewId === 's_reports') {
-            // Student: Personal Progress Report
-            return `
+    } else if (viewId === "s_reports") {
+      // Student: Personal Progress Report
+      return `
     <h4 class="text-success mb-4 border-bottom pb-2">Báo cáo Thống kê Tình hình Học tập Cá nhân</h4>
     <p class="text-muted small">Phân tích sự tiến bộ của cá nhân theo thời gian (Điểm trung bình, Tỷ lệ đạo văn, Điểm kỹ năng).</p>
     <div class="row g-4">
@@ -678,11 +733,11 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        }
-    } else if (currentRole === 'admin') {
-        if (viewId === 'a_users') {
-            // Admin: User Management
-            return `
+    }
+  } else if (currentRole === "admin") {
+    if (viewId === "a_users") {
+      // Admin: User Management
+      return `
     <h4 class="text-danger mb-4 border-bottom pb-2">Quản lý Tài khoản & Phân quyền</h4>
     <p class="text-muted small">Quản lý tài khoản Giảng viên, Sinh viên, và Admin. Thiết lập quyền truy cập hệ thống.</p>
     <div class="d-flex justify-content-between mb-3">
@@ -727,9 +782,9 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        } else if (viewId === 'a_system') {
-            // Admin: System Monitoring
-            return `
+    } else if (viewId === "a_system") {
+      // Admin: System Monitoring
+      return `
     <h4 class="text-danger mb-4 border-bottom pb-2">Giám sát Hoạt động & Hiệu năng Hệ thống</h4>
     <p class="text-muted small">Theo dõi hiệu năng của AI Engine và số lượng công việc được xử lý theo thời gian.</p>
     <div class="row g-4">
@@ -764,162 +819,209 @@ function generateContent(viewId) {
         </div>
     </div>
     `;
-        }
     }
-    return `<div class="alert alert-info">Nội dung cho vai trò/trang này đang được phát triển.</div>`;
+  }
+  return `<div class="alert alert-info">Nội dung cho vai trò/trang này đang được phát triển.</div>`;
 }
 
 // ------------------ EVENT HANDLERS (Simulated Actions) ------------------
 
 // Lecturer - Assignment Creation Helpers
 function addRubricCriteria() {
-    const rubricDiv = document.getElementById('rubricCriteria');
-    const newCriteria = document.createElement('div');
-    newCriteria.className = 'row mb-2';
-    newCriteria.innerHTML = `
+  const rubricDiv = document.getElementById("rubricCriteria");
+  const newCriteria = document.createElement("div");
+  newCriteria.className = "row mb-2";
+  newCriteria.innerHTML = `
     <div class="col-8"><input type="text" class="form-control form-control-sm" placeholder="Tên tiêu chí" required></div>
     <div class="col-3"><input type="number" class="form-control form-control-sm" placeholder="Trọng số (%)" required></div>
     <div class="col-1 text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRubric(this)"><i class="bi bi-x"></i></button></div>
     `;
-    rubricDiv.appendChild(newCriteria);
+  rubricDiv.appendChild(newCriteria);
 }
 
 function removeRubric(button) {
-    button.closest('.row').remove();
+  button.closest(".row").remove();
 }
 
 function handleCreateAssignment(event) {
-    event.preventDefault();
-    const title = document.getElementById('assignmentTitle').value;
-    const course = document.getElementById('assignmentCourse').value;
-    const deadline = document.getElementById('assignmentDeadline').value;
+  event.preventDefault();
+  const title = document.getElementById("assignmentTitle").value;
+  const course = document.getElementById("assignmentCourse").value;
+  const deadline = document.getElementById("assignmentDeadline").value;
 
-    // Simulate validation for total weight
-    const rubricInputs = document.querySelectorAll('#rubricCriteria input[type="number"]');
-    let totalWeight = 0;
-    rubricInputs.forEach(input => {
-        totalWeight += parseInt(input.value) || 0;
-    });
+  // Simulate validation for total weight
+  const rubricInputs = document.querySelectorAll(
+    '#rubricCriteria input[type="number"]'
+  );
+  let totalWeight = 0;
+  rubricInputs.forEach((input) => {
+    totalWeight += parseInt(input.value) || 0;
+  });
 
-    if (totalWeight !== 100) {
-        showToast(`Tổng trọng số Rubric phải là 100%. Hiện tại: ${totalWeight}%`, 'danger');
-        return;
-    }
+  if (totalWeight !== 100) {
+    showToast(
+      `Tổng trọng số Rubric phải là 100%. Hiện tại: ${totalWeight}%`,
+      "danger"
+    );
+    return;
+  }
 
-    showToast(`Đã tạo và giao bài tập "${title}" cho lớp ${course}. Hạn chót: ${new Date(deadline).toLocaleString('vi-VN')}.`, 'success');
+  showToast(
+    `Đã tạo và giao bài tập "${title}" cho lớp ${course}. Hạn chót: ${new Date(
+      deadline
+    ).toLocaleString("vi-VN")}.`,
+    "success"
+  );
 
-    // Simulate sending an automatic notification to students
-    setTimeout(() => {
-        showToast(`Hệ thống đã tự động gửi thông báo push về bài tập mới cho sinh viên lớp ${course}.`, 'info');
-    }, 1500);
+  // Simulate sending an automatic notification to students
+  setTimeout(() => {
+    showToast(
+      `Hệ thống đã tự động gửi thông báo push về bài tập mới cho sinh viên lớp ${course}.`,
+      "info"
+    );
+  }, 1500);
 }
 
 function handleSendNotification(event) {
-    event.preventDefault();
-    const target = document.getElementById('notificationTarget').value;
-    const type = document.getElementById('notificationType').value;
-    const message = document.getElementById('notificationMessage').value;
+  event.preventDefault();
+  const target = document.getElementById("notificationTarget").value;
+  const type = document.getElementById("notificationType").value;
+  const message = document.getElementById("notificationMessage").value;
 
-    if (!message.trim()) {
-        showToast('Vui lòng nhập nội dung thông báo.', 'warning');
-        return;
-    }
+  if (!message.trim()) {
+    showToast("Vui lòng nhập nội dung thông báo.", "warning");
+    return;
+  }
 
-    let typeText;
-    let typeClass;
-    switch (type) {
-        case 'deadline': typeText = 'Hạn chót'; typeClass = 'danger'; break;
-        case 'feedback': typeText = 'Phản hồi'; typeClass = 'success'; break;
-        case 'alert': typeText = 'Cảnh báo'; typeClass = 'warning'; break;
-        default: typeText = 'Chung'; typeClass = 'primary';
-    }
+  let typeText;
+  let typeClass;
+  switch (type) {
+    case "deadline":
+      typeText = "Hạn chót";
+      typeClass = "danger";
+      break;
+    case "feedback":
+      typeText = "Phản hồi";
+      typeClass = "success";
+      break;
+    case "alert":
+      typeText = "Cảnh báo";
+      typeClass = "warning";
+      break;
+    default:
+      typeText = "Chung";
+      typeClass = "primary";
+  }
 
-    showToast(`Đã gửi [${typeText}] tới "${target}" với nội dung: "${message.substring(0, 50)}..."`, 'warning');
+  showToast(
+    `Đã gửi [${typeText}] tới "${target}" với nội dung: "${message.substring(
+      0,
+      50
+    )}..."`,
+    "warning"
+  );
 }
 
-
 function handleUpload() {
-    const uploadModal = bootstrap.Modal.getInstance(document.getElementById('uploadModal'));
-    uploadModal.hide();
-    // Simulate adding a new batch of pending exams if needed, but for now just show confirmation
-    showToast("Đã tải lên tệp bài làm. Bài làm đang chờ Giảng viên kích hoạt Chấm điểm Tự động.", 'primary');
+  const uploadModal = bootstrap.Modal.getInstance(
+    document.getElementById("uploadModal")
+  );
+  uploadModal.hide();
+  // Simulate adding a new batch of pending exams if needed, but for now just show confirmation
+  showToast(
+    "Đã tải lên tệp bài làm. Bài làm đang chờ Giảng viên kích hoạt Chấm điểm Tự động.",
+    "primary"
+  );
 }
 
 function updateExamTableUI(examData) {
-
-    const examTableContainer = document.querySelector('#l_grading-content .card-body');
-    if (examTableContainer) {
-        examTableContainer.innerHTML = generateExamTable(examData) +
-            '<button class="btn btn-outline-danger btn-sm me-2 mt-2" onclick="showToast(\'Đã tải Báo cáo Tổng hợp (PDF).\', \'danger\')"><i class="bi bi-file-earmark-pdf me-1"></i> Tải Báo cáo Tổng</button>';
-    }
+  const examTableContainer = document.querySelector(
+    "#l_grading-content .card-body"
+  );
+  if (examTableContainer) {
+    examTableContainer.innerHTML =
+      generateExamTable(examData) +
+      '<button class="btn btn-outline-danger btn-sm me-2 mt-2" onclick="showToast(\'Đã tải Báo cáo Tổng hợp (PDF).\', \'danger\')"><i class="bi bi-file-earmark-pdf me-1"></i> Tải Báo cáo Tổng</button>';
+  }
 }
 
 function startAutomatedGrading() {
-    const btn = document.getElementById('autoGradeBtn');
-    const pendingExams = examData.filter(e => e.status === 'Pending');
+  const btn = document.getElementById("autoGradeBtn");
+  const pendingExams = examData.filter((e) => e.status === "Pending");
 
-    if (pendingExams.length === 0) {
-        showToast('Không có bài thi nào đang chờ chấm điểm tự động.', 'warning');
-        return;
-    }
+  if (pendingExams.length === 0) {
+    showToast("Không có bài thi nào đang chờ chấm điểm tự động.", "warning");
+    return;
+  }
 
-    // 1. Loading State
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Đang xử lý AI...';
-    showToast(`Bắt đầu chấm ${pendingExams.length} bài thi. Vui lòng chờ đợi...`, 'info');
+  // 1. Loading State
+  btn.disabled = true;
+  btn.innerHTML =
+    '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Đang xử lý AI...';
+  showToast(
+    `Bắt đầu chấm ${pendingExams.length} bài thi. Vui lòng chờ đợi...`,
+    "info"
+  );
 
-    // 2. Simulate AI Processing Delay (3 seconds)
-    setTimeout(() => {
-        let gradedCount = 0;
+  // 2. Simulate AI Processing Delay (3 seconds)
+  setTimeout(() => {
+    let gradedCount = 0;
 
-        // 3. Update Data Model with Simulated Results
-        examData = examData.map(item => {
-            if (item.status === 'Pending') {
-                item.status = 'Graded';
-                // Simulate random score (6.0 to 9.5) and plagiarism (5% to 25%)
-                item.score = (Math.random() * (9.5 - 6.0) + 6.0).toFixed(1);
-                item.plagiarism = Math.floor(Math.random() * (25 - 5) + 5) + '%';
-                item.feedback = 'Chưa gửi';
-                gradedCount++;
-            }
-            return item;
-        });
+    // 3. Update Data Model with Simulated Results
+    examData = examData.map((item) => {
+      if (item.status === "Pending") {
+        item.status = "Graded";
+        // Simulate random score (6.0 to 9.5) and plagiarism (5% to 25%)
+        item.score = (Math.random() * (9.5 - 6.0) + 6.0).toFixed(1);
+        item.plagiarism = Math.floor(Math.random() * (25 - 5) + 5) + "%";
+        item.feedback = "Chưa gửi";
+        gradedCount++;
+      }
+      return item;
+    });
 
-        // 4. Update UI
-        updateExamTableUI();
+    // 4. Update UI
+    updateExamTableUI();
 
-        // 5. Reset button and show success
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-robot me-1"></i> Chấm điểm Tự động (AI)';
-        showToast(`Hoàn thành chấm điểm tự động cho ${gradedCount} bài thi. Giảng viên có thể xem chi tiết.`, 'success');
-
-    }, 3000); // 3 seconds delay for simulation
+    // 5. Reset button and show success
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-robot me-1"></i> Chấm điểm Tự động (AI)';
+    showToast(
+      `Hoàn thành chấm điểm tự động cho ${gradedCount} bài thi. Giảng viên có thể xem chi tiết.`,
+      "success"
+    );
+  }, 3000); // 3 seconds delay for simulation
 }
 
 function checkPlagiarism() {
-    const input = document.getElementById('plagiarismInput').value.trim();
-    const type = document.getElementById('plagiarismType').value;
-    const resultDiv = document.getElementById('plagiarismResult');
-    const loaderDiv = document.getElementById('plagiarismLoader');
+  const input = document.getElementById("plagiarismInput").value.trim();
+  const type = document.getElementById("plagiarismType").value;
+  const resultDiv = document.getElementById("plagiarismResult");
+  const loaderDiv = document.getElementById("plagiarismLoader");
 
-    if (input.length < 100) {
-        showToast('Vui lòng dán nội dung bài làm có độ dài tối thiểu 100 ký tự để kiểm tra.', 'warning');
-        return;
-    }
+  if (input.length < 100) {
+    showToast(
+      "Vui lòng dán nội dung bài làm có độ dài tối thiểu 100 ký tự để kiểm tra.",
+      "warning"
+    );
+    return;
+  }
 
-    // Show loading state
-    resultDiv.style.display = 'block';
-    resultDiv.innerHTML = `<div class="text-center p-5"><span class="spinner-border text-warning me-2"></span> Đang phân tích ${input.length} ký tự... (Khoảng 5 giây)</div>`;
+  // Show loading state
+  resultDiv.style.display = "block";
+  resultDiv.innerHTML = `<div class="text-center p-5"><span class="spinner-border text-warning me-2"></span> Đang phân tích ${input.length} ký tự... (Khoảng 5 giây)</div>`;
 
-    // Simulate Plagiarism Check API Call (5 seconds delay)
-    setTimeout(() => {
-        const score = (Math.random() * (50 - 5) + 5).toFixed(1);
-        const isHighRisk = parseFloat(score) > 25;
-        const scoreClass = isHighRisk ? 'text-danger' : 'text-success';
-        const warningMessage = isHighRisk ? 'HỆ THỐNG CẢNH BÁO: Rủi ro đạo văn CAO! Cần kiểm tra chi tiết.' : 'Tỷ lệ trùng lặp ở mức thấp. Cần xem xét các nguồn phụ.';
+  // Simulate Plagiarism Check API Call (5 seconds delay)
+  setTimeout(() => {
+    const score = (Math.random() * (50 - 5) + 5).toFixed(1);
+    const isHighRisk = parseFloat(score) > 25;
+    const scoreClass = isHighRisk ? "text-danger" : "text-success";
+    const warningMessage = isHighRisk
+      ? "HỆ THỐNG CẢNH BÁO: Rủi ro đạo văn CAO! Cần kiểm tra chi tiết."
+      : "Tỷ lệ trùng lặp ở mức thấp. Cần xem xét các nguồn phụ.";
 
-        // Clear loading and insert result content
-        resultDiv.innerHTML = `
+    // Clear loading and insert result content
+    resultDiv.innerHTML = `
     <p class="text-muted fw-bold">Kết quả Phân tích (HouScore-AI Engine):</p>
     <div class="mb-3 border-bottom pb-2">
         <p class="mb-1">Tỷ lệ Trùng lặp/Đạo văn:
@@ -947,313 +1049,614 @@ function checkPlagiarism() {
     <p class="small text-muted mt-3 mb-0">Giảng viên có thể tải Báo cáo Chi tiết để xem từng câu/đoạn bị đánh dấu.</p>
     `;
 
-        showToast(`Kiểm tra đạo văn hoàn tất. Tỷ lệ trùng lặp: ${score}%.`, isHighRisk ? 'danger' : 'success');
-
-    }, 5000); // 5 seconds delay for plagiarism check
+    showToast(
+      `Kiểm tra đạo văn hoàn tất. Tỷ lệ trùng lặp: ${score}%.`,
+      isHighRisk ? "danger" : "success"
+    );
+  }, 5000); // 5 seconds delay for plagiarism check
 }
 
 function sendQuickFeedback() {
-    const feedback = document.getElementById('quickFeedbackText').value;
-    const studentName = document.getElementById('detail-student-name').textContent;
-    const detailModal = bootstrap.Modal.getInstance(document.getElementById('detailModal'));
-    detailModal.hide();
-    showToast(`Đã gửi phản hồi nhanh: "${feedback.substring(0, 30)}..." tới ${studentName}.`, 'warning');
+  const feedback = document.getElementById("quickFeedbackText").value;
+  const studentName = document.getElementById(
+    "detail-student-name"
+  ).textContent;
+  const detailModal = bootstrap.Modal.getInstance(
+    document.getElementById("detailModal")
+  );
+  detailModal.hide();
+  showToast(
+    `Đã gửi phản hồi nhanh: "${feedback.substring(
+      0,
+      30
+    )}..." tới ${studentName}.`,
+    "warning"
+  );
 }
 
-function handleStudentSubmission() {
-    const file = document.getElementById('fileSubmission').value;
-    if (file) {
-        showToast('Bài làm đã được nộp thành công và đang chờ AI Engine xử lý.', 'success');
-    } else {
-        showToast('Vui lòng chọn tệp để nộp.', 'warning');
+async function handleStudentSubmission() {
+  const fileInput = document.getElementById("fileSubmission");
+  const submitBtn = fileInput
+    ? fileInput.closest(".card-body").querySelector("button.btn-success")
+    : null;
+
+  if (!fileInput || !fileInput.files.length) {
+    showToast("Vui lòng chọn tệp .docx để nộp.", "warning");
+    return;
+  }
+  const file = fileInput.files[0];
+  const ext = file.name.split(".").pop().toLowerCase();
+
+  if (ext !== "docx") {
+    showToast("Chỉ hỗ trợ kiểm tra đạo văn với file .docx.", "warning");
+    return;
+  }
+
+  // Disable submit button
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Đang xử lý...';
+  }
+
+  // Tạo progress bar động
+  let progressBar = document.getElementById("geminiProgressBar");
+  if (!progressBar) {
+    const parent = fileInput.closest(".card-body") || document.body;
+    const wrapper = document.createElement("div");
+    wrapper.className = "my-3";
+    wrapper.innerHTML = `
+      <div class="progress" style="height: 24px;">
+        <div id="geminiProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+          role="progressbar" style="width: 0%">Đang xử lý...</div>
+      </div>
+    `;
+    parent.appendChild(wrapper);
+    progressBar = document.getElementById("geminiProgressBar");
+  }
+  progressBar.style.width = "0%";
+  progressBar.textContent = "Đang xử lý...";
+
+  // Animate progress bar trong lúc chờ Gemini phản hồi
+  let percent = 0;
+  let interval = setInterval(() => {
+    percent += Math.random() * 10 + 5;
+    if (percent > 90) percent = 90;
+    progressBar.style.width = percent + "%";
+  }, 400);
+
+  try {
+    if (typeof window.mammoth === "undefined") {
+      await loadScript(
+        "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.2.0/mammoth.browser.min.js"
+      );
     }
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await window.mammoth.extractRawText({ arrayBuffer });
+    const fileContent = result.value.trim();
+
+    if (!fileContent || fileContent.length < 100) {
+      clearInterval(interval);
+      progressBar.style.width = "100%";
+      progressBar.classList.remove("bg-info");
+      progressBar.classList.add("bg-danger");
+      progressBar.textContent = "Nội dung file không hợp lệ!";
+      showToast(
+        "Nội dung file quá ngắn hoặc không hợp lệ để kiểm tra đạo văn.",
+        "danger"
+      );
+      setTimeout(() => progressBar.parentElement.parentElement.remove(), 2000);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML =
+          '<i class="bi bi-check-circle me-1"></i> Xác nhận Nộp Bài';
+      }
+      fileInput.value = ""; // Xóa file đã chọn
+      return;
+    }
+
+    showToast(
+      "Đang gửi nội dung lên HouScore-AI để kiểm tra đạo văn...",
+      "info"
+    );
+
+    // Gửi nội dung lên Gemini API
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBZSA_zYRm576QyCoC8Mnvc52eI9lSeRi8",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Hãy chấm điểm và kiểm tra đạo văn nhưng chỉ trả về kết quả dạng json (vd: {score: 5.6,smilarity: 0.35}) không cần giải thích gì thêm, chỉ trả về giá trị bắt đầu từ dấu {} :\n\n${fileContent.substring(
+                    0,
+                    4000
+                  )}`,
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
+
+    clearInterval(interval);
+    progressBar.style.width = "100%";
+    if (!response.ok) {
+      progressBar.classList.remove("bg-info");
+      progressBar.classList.add("bg-danger");
+      progressBar.textContent = "Lỗi kết nối HouScore-AI!";
+      showToast("Không thể kết nối tới HouScore-AI API.", "danger");
+      setTimeout(() => progressBar.parentElement.parentElement.remove(), 2000);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML =
+          '<i class="bi bi-check-circle me-1"></i> Xác nhận Nộp Bài';
+      }
+      fileInput.value = ""; // Xóa file đã chọn
+      return;
+    }
+    const data = await response.json();
+    const geminiResult =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Không nhận được kết quả từ HouScore-AI.";
+    progressBar.classList.remove("bg-info");
+    progressBar.classList.add("bg-success");
+    progressBar.textContent = "Hoàn thành!";
+    showToast("Đã nhận kết quả kiểm tra đạo văn từ HouScore-AI.", "success");
+    setTimeout(() => progressBar.parentElement.parentElement.remove(), 2000);
+    // const resultObj = JSON.parse(geminiResult);
+    console.log(geminiResult);
+    const jsonMatch = geminiResult.match(/{[\s\S]*}/);
+    if (jsonMatch) {
+      const obj = JSON.parse(jsonMatch[0]);
+      // Lấy key và value
+      for (const [key, value] of Object.entries(obj)) {
+        console.log("Key:", key, "Value:", value);
+      }
+
+      // Hoặc lấy trực tiếp
+      console.log("Score:", obj.score);
+      console.log("Similarity:", obj.similarity);
+      
+      saveScore(curruntStudent, 'f0hkUX1cPhzud21qucds', obj.score, obj.similarity);
+    } else {
+      console.log("Không tìm thấy JSON hợp lệ trong kết quả trả về.");
+    }
+    // console.log(resultObj);
+
+    // Enable lại nút và làm sạch input file
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML =
+        '<i class="bi bi-check-circle me-1"></i> Xác nhận Nộp Bài';
+    }
+    fileInput.value = ""; // Xóa file đã chọn
+  } catch (err) {
+    clearInterval(interval);
+    progressBar.style.width = "100%";
+    progressBar.classList.remove("bg-info");
+    progressBar.classList.add("bg-danger");
+    progressBar.textContent = "Lỗi xử lý!";
+    showToast("Lỗi khi đọc file hoặc gửi nội dung tới HouScore-AI.", "danger");
+    setTimeout(() => progressBar.parentElement.parentElement.remove(), 2000);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML =
+        '<i class="bi bi-check-circle me-1"></i> Xác nhận Nộp Bài';
+    }
+    fileInput.value = ""; // Xóa file đã chọn
+    console.error(err);
+  }
 }
 
 function showStudentList(courseId) {
-    showToast(`Hiển thị danh sách 65 sinh viên thuộc lớp ${courseId}. Chức năng này sẽ mở ra Modal/Offcanvas chi tiết.`, 'info');
+  showToast(
+    `Hiển thị danh sách 65 sinh viên thuộc lớp ${courseId}. Chức năng này sẽ mở ra Modal/Offcanvas chi tiết.`,
+    "info"
+  );
 }
 
 function viewStudentDetailedFeedback() {
-    showToast('Mở Modal chi tiết phản hồi AI Engine và nhận xét của Giảng viên.', 'info');
-    // Simulate opening a modal by triggering the lecturer detail modal, but change the header for student view
-    const modalEl = document.getElementById('detailModal');
-    const modalTitle = document.getElementById('detailModalLabel');
-    const score = 8.5;
-    const plagiarism = 12;
+  showToast(
+    "Mở Modal chi tiết phản hồi AI Engine và nhận xét của Giảng viên.",
+    "info"
+  );
+  // Simulate opening a modal by triggering the lecturer detail modal, but change the header for student view
+  const modalEl = document.getElementById("detailModal");
+  const modalTitle = document.getElementById("detailModalLabel");
+  const score = 8.5;
+  const plagiarism = 12;
 
-    document.getElementById('detail-student-name').textContent = DEMO_STUDENT_ID;
-    document.getElementById('detail-score').textContent = score;
-    document.getElementById('detail-plagiarism').textContent = plagiarism + '%';
+  document.getElementById("detail-student-name").textContent = DEMO_STUDENT_ID;
+  document.getElementById("detail-score").textContent = score;
+  document.getElementById("detail-plagiarism").textContent = plagiarism + "%";
 
-    modalTitle.innerHTML = `Bài làm Chi tiết & Phản hồi AI: <span class="fw-bold text-success">${DEMO_STUDENT_ID}</span>`;
+  modalTitle.innerHTML = `Bài làm Chi tiết & Phản hồi AI: <span class="fw-bold text-success">${DEMO_STUDENT_ID}</span>`;
 
-    const detailModal = new bootstrap.Modal(modalEl);
-    detailModal.show();
+  const detailModal = new bootstrap.Modal(modalEl);
+  detailModal.show();
 }
 
 // ------------------ CHART INITIALIZATION ------------------
 
 function initializeCharts(viewId) {
-    clearCharts(); // Clear previous charts
+  clearCharts(); // Clear previous charts
 
-    if (viewId === 'l_reports') {
-        // CHART 1: Grade Distribution
-        const ctx1 = document.getElementById('gradeDistributionChart').getContext('2d');
-        gradeDistributionChart = new Chart(ctx1, {
-            type: 'bar',
-            data: {
-                labels: ['Nhập môn AI (K20)', 'Lập trình Web (K21)', 'Cấu trúc Dữ liệu'],
-                datasets: [
-                    { label: 'Điểm A (9-10)', data: [15, 8, 20], backgroundColor: '#198754' },
-                    { label: 'Điểm B (7-8.9)', data: [35, 25, 30], backgroundColor: '#0d6efd' },
-                    { label: 'Điểm C (5-6.9)', data: [10, 5, 15], backgroundColor: '#ffc107' },
-                    { label: 'Điểm D (< 5)', data: [5, 4, 3], backgroundColor: '#dc3545' },
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: 'Số lượng Sinh viên' } } },
-                plugins: { title: { display: false } }
-            }
-        });
+  if (viewId === "l_reports") {
+    // CHART 1: Grade Distribution
+    const ctx1 = document
+      .getElementById("gradeDistributionChart")
+      .getContext("2d");
+    gradeDistributionChart = new Chart(ctx1, {
+      type: "bar",
+      data: {
+        labels: [
+          "Nhập môn AI (K20)",
+          "Lập trình Web (K21)",
+          "Cấu trúc Dữ liệu",
+        ],
+        datasets: [
+          {
+            label: "Điểm A (9-10)",
+            data: [15, 8, 20],
+            backgroundColor: "#198754",
+          },
+          {
+            label: "Điểm B (7-8.9)",
+            data: [35, 25, 30],
+            backgroundColor: "#0d6efd",
+          },
+          {
+            label: "Điểm C (5-6.9)",
+            data: [10, 5, 15],
+            backgroundColor: "#ffc107",
+          },
+          {
+            label: "Điểm D (< 5)",
+            data: [5, 4, 3],
+            backgroundColor: "#dc3545",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true },
+          y: {
+            stacked: true,
+            title: { display: true, text: "Số lượng Sinh viên" },
+          },
+        },
+        plugins: { title: { display: false } },
+      },
+    });
 
-        // CHART 2: AI Grading Performance (Deviation)
-        const ctx2 = document.getElementById('aiVsManualChart').getContext('2d');
-        aiVsManualChart = new Chart(ctx2, {
-            type: 'radar',
-            data: {
-                labels: ['Tính Logic', 'Phân tích', 'Cấu trúc', 'Ngôn ngữ'],
-                datasets: [
-                    {
-                        label: 'Sai lệch TB (AI - GV)',
-                        data: [0.5, 0.2, 0.4, 0.3], // Deviation in score (max 1.0)
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        borderColor: 'rgb(255, 99, 132)',
-                        pointBackgroundColor: 'rgb(255, 99, 132)'
-                    },
-                    {
-                        label: 'Điểm chuẩn TB (GV)',
-                        data: [8.5, 9.0, 7.5, 8.0],
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderColor: 'rgb(54, 162, 235)',
-                        pointBackgroundColor: 'rgb(54, 162, 235)'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { r: { suggestedMin: 0, suggestedMax: 10, pointLabels: { font: { size: 11 } } } },
-                plugins: { title: { display: true, text: 'So sánh Điểm Chấm Tự động và Thủ công' } }
-            }
-        });
+    // CHART 2: AI Grading Performance (Deviation)
+    const ctx2 = document.getElementById("aiVsManualChart").getContext("2d");
+    aiVsManualChart = new Chart(ctx2, {
+      type: "radar",
+      data: {
+        labels: ["Tính Logic", "Phân tích", "Cấu trúc", "Ngôn ngữ"],
+        datasets: [
+          {
+            label: "Sai lệch TB (AI - GV)",
+            data: [0.5, 0.2, 0.4, 0.3], // Deviation in score (max 1.0)
+            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            borderColor: "rgb(255, 99, 132)",
+            pointBackgroundColor: "rgb(255, 99, 132)",
+          },
+          {
+            label: "Điểm chuẩn TB (GV)",
+            data: [8.5, 9.0, 7.5, 8.0],
+            backgroundColor: "rgba(54, 162, 235, 0.2)",
+            borderColor: "rgb(54, 162, 235)",
+            pointBackgroundColor: "rgb(54, 162, 235)",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            suggestedMin: 0,
+            suggestedMax: 10,
+            pointLabels: { font: { size: 11 } },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: "So sánh Điểm Chấm Tự động và Thủ công",
+          },
+        },
+      },
+    });
 
-        // CHART 3: AI Engine Efficiency (Processing Time)
-        const ctx3 = document.getElementById('aiEfficiencyChart').getContext('2d');
-        aiEfficiencyChart = new Chart(ctx3, {
-            type: 'line',
-            data: {
-                labels: ['Thg 1', 'Thg 2', 'Thg 3', 'Thg 4', 'Thg 5', 'Thg 6'],
-                datasets: [
-                    {
-                        label: 'Thời gian xử lý TB (giây/bài)',
-                        data: [17, 15, 14, 12, 13, 11.5],
-                        borderColor: '#0dcaf0', // Info color
-                        tension: 0.4,
-                        fill: false,
-                        yAxisID: 'y'
-                    },
-                    {
-                        label: 'Tỷ lệ lỗi (%)',
-                        data: [0.5, 0.3, 0.2, 0.1, 0.1, 0.05],
-                        borderColor: '#dc3545', // Danger color
-                        tension: 0.4,
-                        fill: false,
-                        yAxisID: 'y1'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Thời gian (giây)' } },
-                    y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Tỷ lệ lỗi (%)' }, grid: { drawOnChartArea: false } }
-                },
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-    } else if (viewId === 's_progress') {
-        const ctx = document.getElementById('progressComparisonChart').getContext('2d');
-        progressComparisonChart = new Chart(ctx, {
-            type: 'radar',
-            data: {
-                labels: ['Tính Logic', 'Phân tích', 'Cấu trúc', 'Ngôn ngữ', 'Sáng tạo'],
-                datasets: [
-                    {
-                        label: 'Điểm Cá nhân (S.SV105)',
-                        data: [8, 9, 7.5, 9, 8],
-                        backgroundColor: 'rgba(25, 135, 84, 0.2)', // Success
-                        borderColor: '#198754',
-                        pointBackgroundColor: '#198754'
-                    },
-                    {
-                        label: 'Điểm Trung bình Lớp',
-                        data: [7.5, 8, 7, 8.5, 7],
-                        backgroundColor: 'rgba(13, 110, 253, 0.2)', // Primary
-                        borderColor: '#0d6efd',
-                        pointBackgroundColor: '#0d6efd'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { r: { suggestedMin: 0, suggestedMax: 10, ticks: { display: false } } },
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-    } else if (viewId === 's_reports') {
-        // Grade Trend Chart
-        const ctxTrend = document.getElementById('gradeTrendChart').getContext('2d');
-        gradeTrendChart = new Chart(ctxTrend, {
-            type: 'line',
-            data: {
-                labels: ['HK 2023/1', 'HK 2023/2', 'HK 2024/1 (Hiện tại)'],
-                datasets: [
-                    {
-                        label: 'Điểm TB Tích lũy',
-                        data: [7.5, 8.1, 8.5],
-                        borderColor: '#198754',
-                        tension: 0.3,
-                        fill: false,
-                        pointBackgroundColor: '#198754'
-                    }
-                ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false, min: 7, max: 10 } } }
-        });
+    // CHART 3: AI Engine Efficiency (Processing Time)
+    const ctx3 = document.getElementById("aiEfficiencyChart").getContext("2d");
+    aiEfficiencyChart = new Chart(ctx3, {
+      type: "line",
+      data: {
+        labels: ["Thg 1", "Thg 2", "Thg 3", "Thg 4", "Thg 5", "Thg 6"],
+        datasets: [
+          {
+            label: "Thời gian xử lý TB (giây/bài)",
+            data: [17, 15, 14, 12, 13, 11.5],
+            borderColor: "#0dcaf0", // Info color
+            tension: 0.4,
+            fill: false,
+            yAxisID: "y",
+          },
+          {
+            label: "Tỷ lệ lỗi (%)",
+            data: [0.5, 0.3, 0.2, 0.1, 0.1, 0.05],
+            borderColor: "#dc3545", // Danger color
+            tension: 0.4,
+            fill: false,
+            yAxisID: "y1",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            position: "left",
+            title: { display: true, text: "Thời gian (giây)" },
+          },
+          y1: {
+            beginAtZero: true,
+            position: "right",
+            title: { display: true, text: "Tỷ lệ lỗi (%)" },
+            grid: { drawOnChartArea: false },
+          },
+        },
+        plugins: { legend: { position: "bottom" } },
+      },
+    });
+  } else if (viewId === "s_progress") {
+    const ctx = document
+      .getElementById("progressComparisonChart")
+      .getContext("2d");
+    progressComparisonChart = new Chart(ctx, {
+      type: "radar",
+      data: {
+        labels: ["Tính Logic", "Phân tích", "Cấu trúc", "Ngôn ngữ", "Sáng tạo"],
+        datasets: [
+          {
+            label: "Điểm Cá nhân (S.SV105)",
+            data: [8, 9, 7.5, 9, 8],
+            backgroundColor: "rgba(25, 135, 84, 0.2)", // Success
+            borderColor: "#198754",
+            pointBackgroundColor: "#198754",
+          },
+          {
+            label: "Điểm Trung bình Lớp",
+            data: [7.5, 8, 7, 8.5, 7],
+            backgroundColor: "rgba(13, 110, 253, 0.2)", // Primary
+            borderColor: "#0d6efd",
+            pointBackgroundColor: "#0d6efd",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: { suggestedMin: 0, suggestedMax: 10, ticks: { display: false } },
+        },
+        plugins: { legend: { position: "bottom" } },
+      },
+    });
+  } else if (viewId === "s_reports") {
+    // Grade Trend Chart
+    const ctxTrend = document
+      .getElementById("gradeTrendChart")
+      .getContext("2d");
+    gradeTrendChart = new Chart(ctxTrend, {
+      type: "line",
+      data: {
+        labels: ["HK 2023/1", "HK 2023/2", "HK 2024/1 (Hiện tại)"],
+        datasets: [
+          {
+            label: "Điểm TB Tích lũy",
+            data: [7.5, 8.1, 8.5],
+            borderColor: "#198754",
+            tension: 0.3,
+            fill: false,
+            pointBackgroundColor: "#198754",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: false, min: 7, max: 10 } },
+      },
+    });
 
-        // Rubric Score Chart
-        const ctxRubric = document.getElementById('rubricScoreChart').getContext('2d');
-        rubricScoreChart = new Chart(ctxRubric, {
-            type: 'polarArea',
-            data: {
-                labels: ['Logic', 'Phân tích', 'Cấu trúc', 'Sáng tạo'],
-                datasets: [{
-                    data: [8.5, 9.0, 7.5, 8.0],
-                    backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545']
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { r: { suggestedMin: 0, suggestedMax: 10, ticks: { display: false } } }, plugins: { legend: { position: 'right' } } }
-        });
-    } else if (viewId === 'a_system') {
-        const ctxAdmin = document.getElementById('adminSystemLoadChart').getContext('2d');
-        adminSystemLoadChart = new Chart(ctxAdmin, {
-            type: 'line',
-            data: {
-                labels: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'],
-                datasets: [
-                    { label: 'Số bài xử lý (Nghìn)', data: [1.5, 2.0, 3.5, 4.0, 3.8, 4.5], borderColor: '#dc3545', fill: true, backgroundColor: 'rgba(220, 53, 69, 0.2)', tension: 0.4 },
-                ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-        });
-    }
+    // Rubric Score Chart
+    const ctxRubric = document
+      .getElementById("rubricScoreChart")
+      .getContext("2d");
+    rubricScoreChart = new Chart(ctxRubric, {
+      type: "polarArea",
+      data: {
+        labels: ["Logic", "Phân tích", "Cấu trúc", "Sáng tạo"],
+        datasets: [
+          {
+            data: [8.5, 9.0, 7.5, 8.0],
+            backgroundColor: ["#0d6efd", "#198754", "#ffc107", "#dc3545"],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: { suggestedMin: 0, suggestedMax: 10, ticks: { display: false } },
+        },
+        plugins: { legend: { position: "right" } },
+      },
+    });
+  } else if (viewId === "a_system") {
+    const ctxAdmin = document
+      .getElementById("adminSystemLoadChart")
+      .getContext("2d");
+    adminSystemLoadChart = new Chart(ctxAdmin, {
+      type: "line",
+      data: {
+        labels: ["T1", "T2", "T3", "T4", "T5", "T6"],
+        datasets: [
+          {
+            label: "Số bài xử lý (Nghìn)",
+            data: [1.5, 2.0, 3.5, 4.0, 3.8, 4.5],
+            borderColor: "#dc3545",
+            fill: true,
+            backgroundColor: "rgba(220, 53, 69, 0.2)",
+            tension: 0.4,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { beginAtZero: true } },
+      },
+    });
+  }
 }
 
 // Initial setup
-document.addEventListener('DOMContentLoaded', function () {
-    // Logic to handle lecturer detail button clicks
-    document.addEventListener('click', function (e) {
-        if (e.target.matches('.view-details-btn')) {
-            const row = e.target.closest('tr');
-            const studentName = row.getAttribute('data-student-name');
-            const score = row.getAttribute('data-score');
-            const plagiarism = row.getAttribute('data-plagiarism');
+document.addEventListener("DOMContentLoaded", function () {
+  // Logic to handle lecturer detail button clicks
+  document.addEventListener("click", function (e) {
+    if (e.target.matches(".view-details-btn")) {
+      const row = e.target.closest("tr");
+      const studentName = row.getAttribute("data-student-name");
+      const score = row.getAttribute("data-score");
+      const plagiarism = row.getAttribute("data-plagiarism");
 
-            document.getElementById('detail-student-name').textContent = studentName;
-            document.getElementById('detail-score').textContent = score;
-            document.getElementById('detail-plagiarism').textContent = plagiarism;
+      document.getElementById("detail-student-name").textContent = studentName;
+      document.getElementById("detail-score").textContent = score;
+      document.getElementById("detail-plagiarism").textContent = plagiarism;
 
-            // Set color based on plagiarism risk
-            const plgElement = document.getElementById('detail-plagiarism');
-            if (parseFloat(plagiarism) > 30) {
-                plgElement.className = 'fw-bold text-danger';
-            } else {
-                plgElement.className = 'fw-bold text-success';
-            }
+      // Set color based on plagiarism risk
+      const plgElement = document.getElementById("detail-plagiarism");
+      if (parseFloat(plagiarism) > 30) {
+        plgElement.className = "fw-bold text-danger";
+      } else {
+        plgElement.className = "fw-bold text-success";
+      }
 
-            // Reset title for lecturer view
-            document.getElementById('detailModalLabel').innerHTML = `Kết quả Chi tiết Bài làm: <span id="detail-student-name" class="fw-bold text-primary">${studentName}</span>`;
+      // Reset title for lecturer view
+      document.getElementById(
+        "detailModalLabel"
+      ).innerHTML = `Kết quả Chi tiết Bài làm: <span id="detail-student-name" class="fw-bold text-primary">${studentName}</span>`;
 
-            const detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
-            detailModal.show();
-        }
-    });
+      const detailModal = new bootstrap.Modal(
+        document.getElementById("detailModal")
+      );
+      detailModal.show();
+    }
+  });
 });
 
 // PDF.js CDN for PDF text extraction
-const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js';
-const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+const PDFJS_URL =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js";
+const PDFJS_WORKER_URL =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js";
 // File upload handler for plagiarism check
-document.addEventListener('DOMContentLoaded', function () {
-    const fileInput = document.getElementById('plagiarismFile');
-    if (fileInput) {
-        fileInput.addEventListener('change', async function (e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const ext = file.name.split('.').pop().toLowerCase();
-            const textarea = document.getElementById('plagiarismInput');
-            if (ext === 'txt') {
-                const reader = new FileReader();
-                reader.onload = function (evt) {
-                    textarea.value = evt.target.result;
-                };
-                reader.readAsText(file);
-            } else if (ext === 'pdf') {
-                // Dynamically load PDF.js if not loaded
-                if (typeof window.pdfjsLib === 'undefined') {
-                    await loadScript(PDFJS_URL);
-                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
-                }
-                const reader = new FileReader();
-                reader.onload = async function (evt) {
-                    const typedarray = new Uint8Array(evt.target.result);
-                    const pdf = await window.pdfjsLib.getDocument({ data: typedarray }).promise;
-                    let text = '';
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        const page = await pdf.getPage(i);
-                        const content = await page.getTextContent();
-                        text += content.items.map(item => item.str).join(' ') + ' ';
-                    }
-                    textarea.value = text.trim();
-                };
-                reader.readAsArrayBuffer(file);
-            } else if (ext === 'doc' || ext === 'docx') {
-                textarea.value = '';
-                showToast('Đọc file .doc/.docx chưa được hỗ trợ trực tiếp trên trình duyệt. Vui lòng chuyển sang PDF hoặc TXT.', 'warning');
-            } else {
-                textarea.value = '';
-                showToast('Định dạng file không hỗ trợ. Chỉ hỗ trợ .doc, .docx, .pdf, .txt', 'danger');
-            }
-        });
-    }
+document.addEventListener("DOMContentLoaded", function () {
+  const fileInput = document.getElementById("plagiarismFile");
+  if (fileInput) {
+    fileInput.addEventListener("change", async function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split(".").pop().toLowerCase();
+      const textarea = document.getElementById("plagiarismInput");
+      if (ext === "txt") {
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          textarea.value = evt.target.result;
+        };
+        reader.readAsText(file);
+      } else if (ext === "pdf") {
+        // Dynamically load PDF.js if not loaded
+        if (typeof window.pdfjsLib === "undefined") {
+          await loadScript(PDFJS_URL);
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        }
+        const reader = new FileReader();
+        reader.onload = async function (evt) {
+          const typedarray = new Uint8Array(evt.target.result);
+          const pdf = await window.pdfjsLib.getDocument({ data: typedarray })
+            .promise;
+          let text = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map((item) => item.str).join(" ") + " ";
+          }
+          textarea.value = text.trim();
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (ext === "doc" || ext === "docx") {
+        textarea.value = "";
+        showToast(
+          "Đọc file .doc/.docx chưa được hỗ trợ trực tiếp trên trình duyệt. Vui lòng chuyển sang PDF hoặc TXT.",
+          "warning"
+        );
+      } else {
+        textarea.value = "";
+        showToast(
+          "Định dạng file không hỗ trợ. Chỉ hỗ trợ .doc, .docx, .pdf, .txt",
+          "danger"
+        );
+      }
+    });
+  }
 });
 // Helper to dynamically load external JS
 function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
 }
 
-
 function showLoading(show = true) {
-    const overlay = document.getElementById('loadingOverlay');
-    if (overlay) overlay.style.display = show ? 'flex' : 'none';
+  const overlay = document.getElementById("loadingOverlay");
+  if (overlay) overlay.style.display = show ? "flex" : "none";
+}
+
+function saveScore(studentID, subjectID, score, simalarity) {
+  // Lưu điểm và tỉ lệ đạo văn vào collection "score" trên Firestore với documentId tự động
+  db.collection("score")
+    .add({
+      ID_student: studentID,
+      ID_subject: subjectID,
+      score: score,
+      simalarity_content: simalarity,
+      status: "done",
+    })
+    .then(() => {
+      showToast("Lưu điểm và tỉ lệ đạo văn thành công!", "success");
+    })
+    .catch((error) => {
+      showToast("Lỗi khi lưu điểm lên Firestore.", "danger");
+      console.error(error);
+    });
 }
