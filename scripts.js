@@ -110,7 +110,7 @@ async function fetchExamDataFromFirestore() {
         typeof score.simalarity_content === "number"
           ? score.simalarity_content
           : "N/A",
-      comment: score.comment ||"Không có nhận xét",
+      comment: score.comment || "Không có nhận xét",
       status: score.status || "cho",
     }));
 
@@ -160,7 +160,7 @@ function generateExamTable(arr) {
         data-score="${item.score}"
         data-plagiarism="${item.plagiarism}"><i class="bi bi-eye"></i> Chi tiết</button>`
         : `<button class="btn btn-sm btn-light text-muted" disabled><i class="bi bi-slash-circle"></i> Chưa chấm</button>`;
-        
+
     tableRows += `
     <tr data-id="${item.ID_student}" data-score="${item.score}" data-plagiarism="${item.simalarity_content}" data-student-name="${item.name}" data-comment=" ${item.comment}">
         <td>${item.ID_student}</td>
@@ -670,44 +670,58 @@ function generateContent(viewId) {
     `;
     } else if (viewId === "s_history") {
       // Student: Assignment History
+      setTimeout(async () => {
+        const container = document.querySelector('#s_history-content .card-body');
+        if (!container) return;
+        container.innerHTML = '<div class="text-center text-muted"><span class="spinner-border spinner-border-sm"></span> Đang tải dữ liệu...</div>';
+        const history = await fetchStudentHistory(curruntStudent);
+        if (!history.length) {
+          container.innerHTML = '<div class="alert alert-info">Chưa có bài làm nào được lưu.</div>';
+          return;
+        }
+        let rows = '';
+
+        console.log(history);
+        
+
+        history.forEach(item => {
+          rows += `
+        <tr data-name="${item.subject_name}" data-score="${item.score}" data-plagiarism="${item.simalarity_content}" data-comment="${item.comment}">
+          <td>${item.subject_name}</td>
+          <td>${item.assignment_name}</td>
+          <td class="fw-bold text-success">${item.simalarity_content * 100 + "%"}</td>
+          <td class="fw-bold text-success">${item.score}</td>
+          <td><button class="btn btn-sm btn-outline-info btn-show-s-history">Xem chi tiết</button></td>
+        </tr>
+      `;
+        });
+        container.innerHTML = `
+      <table class="table table-hover table-striped small">
+        <thead>
+          <tr>
+            <th>Môn học</th>
+            <th>Bài làm</th>
+            <th>Tỉ lệ đạo văn</th>
+            <th>Điểm AI</th>
+            <th>Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    `;
+      }, 0);
+
+      // Trả về khung HTML trước, dữ liệu sẽ được render sau
       return `
     <h4 class="text-success mb-4 border-bottom pb-2">Lịch sử Bài làm & Phản hồi</h4>
     <p class="text-muted small">Danh sách các bài làm đã được chấm điểm và phản hồi chi tiết từ Giảng viên/AI Engine.</p>
     <div class="card shadow-sm">
-        <div class="card-body">
-            <table class="table table-hover table-striped small">
-                <thead>
-                    <tr>
-                        <th>Môn học</th>
-                        <th>Bài làm</th>
-                        <th>Ngày nộp</th>
-                        <th>Điểm AI</th>
-                        <th>Phản hồi</th>
-                        <th>Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Nhập môn AI</td>
-                        <td>Bài thi Tự luận cuối kỳ</td>
-                        <td>15/12/2024</td>
-                        <td class="fw-bold text-success">8.5</td>
-                        <td><span class="badge bg-warning text-dark">Phản hồi Nhanh từ GV</span></td>
-                        <td><button class="btn btn-sm btn-outline-info" onclick="viewStudentDetailedFeedback()">Xem chi tiết</button></td>
-                    </tr>
-                    <tr>
-                        <td>Lập trình Web</td>
-                        <td>Báo cáo giữa kỳ</td>
-                        <td>20/10/2024</td>
-                        <td class="fw-bold text-success">7.8</td>
-                        <td><span class="badge bg-primary">Phản hồi AI Engine</span></td>
-                        <td><button class="btn btn-sm btn-outline-info" onclick="viewStudentDetailedFeedback()">Xem chi tiết</button></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+      <div class="card-body"></div>
     </div>
-    `;
+  `;;
+      return xml;
     } else if (viewId === "s_reports") {
       // Student: Personal Progress Report
       return `
@@ -1547,7 +1561,7 @@ document.addEventListener("DOMContentLoaded", function () {
       document.getElementById("detail-score").textContent = score;
       document.getElementById("detail-plagiarism").textContent = plagiarism * 100 + "%";
       document.getElementById("detail-comment").innerHTML = comment;
-      
+
 
       // Set color based on plagiarism risk
       const plgElement = document.getElementById("detail-plagiarism");
@@ -1683,19 +1697,71 @@ async function fetchStudentHistory(studentId) {
     const history = snapshot.docs.map(doc => {
       const data = doc.data();
       return {
+        student_id: data.ID_student || "N/A",
         subject_name: subjectMap[data.ID_subject]?.subject_name || data.ID_subject || "N/A",
         assignment_name: data.assignment_name || "Bài thi/Bài tập",
         submit_date: data.submit_date || "N/A",
         score: data.score !== undefined ? data.score : "N/A",
+        simalarity_content: data.simalarity_content !== undefined ? data.simalarity_content : "N/A",
         comment: data.comment || "Không có phản hồi",
         status: data.status || "done"
       };
     });
-
     return history;
+
+    // return history;
   } catch (error) {
     showToast("Lỗi khi lấy lịch sử bài làm.", "danger");
     console.error(error);
     return [];
   }
 }
+
+function showDetailModal(studentID, studentName, score, plagiarism, comment, isLecturer = false) {
+  // Hiển thị thông tin chi tiết lên modal
+  // document.getElementById("detail-student-name").textContent = studentName || studentID || "";
+  document.getElementById("detail-score").textContent = score !== undefined ? score : "N/A";
+  document.getElementById("detail-plagiarism").textContent =
+    plagiarism !== undefined && plagiarism !== "N/A"
+      ? (parseFloat(plagiarism) * 100).toFixed(1) + "%"
+      : "N/A";
+  document.getElementById("detail-comment").innerHTML = comment || "Không có nhận xét";
+
+  // Đổi màu theo mức độ đạo văn
+  const plgElement = document.getElementById("detail-plagiarism");
+  if (parseFloat(plagiarism) * 100 > 30) {
+    plgElement.className = "fw-bold text-danger";
+  } else {
+    plgElement.className = "fw-bold text-success";
+  }
+
+  // Đặt tiêu đề modal phù hợp
+  document.getElementById("detailModalLabel").innerHTML =
+    isLecturer
+      ? `Kết quả Chi tiết Bài làm: <span id="detail-student-name" class="fw-bold text-primary">${studentID}</span>`
+      : `Bài làm Chi tiết & Phản hồi AI: <span class="fw-bold text-success">${studentID}</span>`;
+
+  // Hiển thị modal
+  const detailModal = new bootstrap.Modal(document.getElementById("detailModal"));
+  detailModal.show();
+}
+
+document.addEventListener("click", function (e) {
+  if (e.target.classList.contains("btn-show-s-history")) {
+    const row = e.target.closest("tr");
+    const subjectName = row.getAttribute("data-name");
+    const score = row.getAttribute("data-score");
+    const plagiarism = row.getAttribute("data-plagiarism");
+    const comment = row.getAttribute("data-comment");
+
+    // Gọi hàm showDetailModal đã có
+    showDetailModal(
+      subjectName, // studentID (hoặc subjectName nếu muốn)
+      subjectName, // studentName (hoặc subjectName nếu muốn)
+      score,
+      plagiarism,
+      comment,
+      false // isLecturer = false
+    );
+  }
+});
