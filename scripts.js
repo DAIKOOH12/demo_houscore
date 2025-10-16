@@ -110,6 +110,7 @@ async function fetchExamDataFromFirestore() {
         typeof score.simalarity_content === "number"
           ? score.simalarity_content
           : "N/A",
+      comment: score.comment ||"Không có nhận xét",
       status: score.status || "cho",
     }));
 
@@ -139,16 +140,14 @@ function generateExamTable(arr) {
   examData.forEach((item) => {
     const scoreDisplay =
       item.status === "done"
-        ? `<span class="fw-bold text-${
-            item.score >= 7 ? "success" : "warning"
-          }">${item.score} / 10</span>`
+        ? `<span class="fw-bold text-${item.score >= 7 ? "success" : "warning"
+        }">${item.score} / 10</span>`
         : `<span class="badge bg-secondary">Chưa chấm</span>`;
     var simalarity_content = item.simalarity_content * 100;
     const plagiarismDisplay =
       item.status === "done"
-        ? `<span class="text-${
-            parseFloat(simalarity_content) > 30 ? "danger" : "success"
-          } fw-bold">${simalarity_content} %</span>`
+        ? `<span class="text-${parseFloat(simalarity_content) > 30 ? "danger" : "success"
+        } fw-bold">${simalarity_content} %</span>`
         : `<span class="badge bg-secondary">Chưa chấm</span>`;
     const feedbackDisplay =
       item.status === "done"
@@ -161,9 +160,9 @@ function generateExamTable(arr) {
         data-score="${item.score}"
         data-plagiarism="${item.plagiarism}"><i class="bi bi-eye"></i> Chi tiết</button>`
         : `<button class="btn btn-sm btn-light text-muted" disabled><i class="bi bi-slash-circle"></i> Chưa chấm</button>`;
-
+        
     tableRows += `
-    <tr data-id="${item.id}" data-score="${item.score}" data-plagiarism="${item.plagiarism}" data-student-name="${item.name}">
+    <tr data-id="${item.ID_student}" data-score="${item.score}" data-plagiarism="${item.simalarity_content}" data-student-name="${item.name}" data-comment=" ${item.comment}">
         <td>${item.ID_student}</td>
         <td>${item.student_name}</td>
         <td>${scoreDisplay}</td>
@@ -1162,7 +1161,7 @@ async function handleStudentSubmission() {
 
     // Gửi nội dung lên Gemini API
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBZSA_zYRm576QyCoC8Mnvc52eI9lSeRi8",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBQp_wOktj1T4kdK4J7573iaex5bsK8c6I",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1171,7 +1170,7 @@ async function handleStudentSubmission() {
             {
               parts: [
                 {
-                  text: `Hãy chấm điểm và kiểm tra đạo văn nhưng chỉ trả về kết quả dạng json (vd: {score: 5.6,smilarity: 0.35}) không cần giải thích gì thêm, chỉ trả về giá trị bắt đầu từ dấu {} :\n\n${fileContent.substring(
+                  text: `Hãy chấm điểm và kiểm tra đạo văn nhưng chỉ trả về kết quả dạng json (vd: {score: 5.6,smilarity: 0.35,comment: *theo tiêu chí rubrics }) không cần giải thích gì thêm, chỉ trả về giá trị bắt đầu từ dấu {} :\n\n${fileContent.substring(
                     0,
                     4000
                   )}`,
@@ -1213,16 +1212,14 @@ async function handleStudentSubmission() {
     const jsonMatch = geminiResult.match(/{[\s\S]*}/);
     if (jsonMatch) {
       const obj = JSON.parse(jsonMatch[0]);
-      // Lấy key và value
-      for (const [key, value] of Object.entries(obj)) {
-        console.log("Key:", key, "Value:", value);
-      }
+      console.log(obj);
 
-      // Hoặc lấy trực tiếp
-      console.log("Score:", obj.score);
-      console.log("Similarity:", obj.similarity);
-      
-      saveScore(curruntStudent, 'f0hkUX1cPhzud21qucds', obj.score, obj.similarity);
+      // // Lấy key và value
+      // for (const [key, value] of Object.entries(obj)) {
+      //   console.log("Key:", key, "Value:", value);
+
+
+      saveScore(curruntStudent, 'f0hkUX1cPhzud21qucds', obj.score, obj.similarity, obj.comment);
     } else {
       console.log("Không tìm thấy JSON hợp lệ trong kết quả trả về.");
     }
@@ -1271,7 +1268,7 @@ function viewStudentDetailedFeedback() {
   const score = 8.5;
   const plagiarism = 12;
 
-  document.getElementById("detail-student-name").textContent = DEMO_STUDENT_ID;
+  document.getElementById("detail-student-name").textContent = "Svien1";
   document.getElementById("detail-score").textContent = score;
   document.getElementById("detail-plagiarism").textContent = plagiarism + "%";
 
@@ -1541,13 +1538,16 @@ document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("click", function (e) {
     if (e.target.matches(".view-details-btn")) {
       const row = e.target.closest("tr");
-      const studentName = row.getAttribute("data-student-name");
+      const studentID = row.getAttribute("data-id");
       const score = row.getAttribute("data-score");
       const plagiarism = row.getAttribute("data-plagiarism");
+      const comment = row.getAttribute("data-comment");
 
-      document.getElementById("detail-student-name").textContent = studentName;
+      document.getElementById("detail-student-name").textContent = "SVIEN1";
       document.getElementById("detail-score").textContent = score;
-      document.getElementById("detail-plagiarism").textContent = plagiarism;
+      document.getElementById("detail-plagiarism").textContent = plagiarism * 100 + "%";
+      document.getElementById("detail-comment").innerHTML = comment;
+      
 
       // Set color based on plagiarism risk
       const plgElement = document.getElementById("detail-plagiarism");
@@ -1560,7 +1560,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Reset title for lecturer view
       document.getElementById(
         "detailModalLabel"
-      ).innerHTML = `Kết quả Chi tiết Bài làm: <span id="detail-student-name" class="fw-bold text-primary">${studentName}</span>`;
+      ).innerHTML = `Kết quả Chi tiết Bài làm: <span id="detail-student-name" class="fw-bold text-primary">${studentID}</span>`;
 
       const detailModal = new bootstrap.Modal(
         document.getElementById("detailModal")
@@ -1642,7 +1642,7 @@ function showLoading(show = true) {
   if (overlay) overlay.style.display = show ? "flex" : "none";
 }
 
-function saveScore(studentID, subjectID, score, simalarity) {
+function saveScore(studentID, subjectID, score, simalarity, comment) {
   // Lưu điểm và tỉ lệ đạo văn vào collection "score" trên Firestore với documentId tự động
   db.collection("score")
     .add({
@@ -1650,6 +1650,7 @@ function saveScore(studentID, subjectID, score, simalarity) {
       ID_subject: subjectID,
       score: score,
       simalarity_content: simalarity,
+      comment: comment,
       status: "done",
     })
     .then(() => {
@@ -1659,4 +1660,42 @@ function saveScore(studentID, subjectID, score, simalarity) {
       showToast("Lỗi khi lưu điểm lên Firestore.", "danger");
       console.error(error);
     });
+}
+
+async function fetchStudentHistory(studentId) {
+  try {
+    const snapshot = await db.collection("score")
+      .where("ID_student", "==", studentId)
+      .get();
+
+    // Lấy thông tin môn học
+    const subjectIds = [...new Set(snapshot.docs.map(doc => doc.data().ID_subject))];
+    const subjectPromises = subjectIds.map(id =>
+      db.collection("subjects").doc(id).get()
+    );
+    const subjectDocs = await Promise.all(subjectPromises);
+    const subjectMap = {};
+    subjectDocs.forEach(doc => {
+      if (doc.exists) subjectMap[doc.id] = doc.data();
+    });
+
+    // Tạo mảng lịch sử
+    const history = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        subject_name: subjectMap[data.ID_subject]?.subject_name || data.ID_subject || "N/A",
+        assignment_name: data.assignment_name || "Bài thi/Bài tập",
+        submit_date: data.submit_date || "N/A",
+        score: data.score !== undefined ? data.score : "N/A",
+        comment: data.comment || "Không có phản hồi",
+        status: data.status || "done"
+      };
+    });
+
+    return history;
+  } catch (error) {
+    showToast("Lỗi khi lấy lịch sử bài làm.", "danger");
+    console.error(error);
+    return [];
+  }
 }
